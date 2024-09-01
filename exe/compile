@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+fs = require("fs")
+read_file = (a) => fs.readFileSync(a, "utf8")
+top_script = read_file("src/foreign/papaparse.min.js")
+bottom_script = read_file("src/main.js")
+html = read_file("src/main.html")
+html = html.replace("{{top_script}}", top_script)
+html = html.replace("{{bottom_script}}", bottom_script)
+fs.writeFile("compiled/gridlearner.html", html, (a) => a && console.error(a))

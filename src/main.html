@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="initial-scale=1"/>
+    <title>gridlearner</title>
+    <style>
+     html{font-size:24px;font-family:monospace,sans-serif}
+     body{background-color:#444;color:#fff;margin:0}
+     select{border:0;padding:0;margin:0;background-color:#000;color:#aaa}
+     input[type=number]{width:40px}
+     input, label{margin:0 8px}
+     #top_bar{position:fixed;top:0;width:100%;background-color:#000;border-bottom:1px solid #888;display:flex}
+     #font-buttons{margin-left: auto}
+     #grid{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;padding:8px}
+     #grid > *{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px}
+     #grid > * > :nth-child(2){display:none}
+     #grid > .selected > :nth-child(2){display:inline-block}
+     #grid > .selected > :nth-child(1){display:none}
+     #top_bar .left{display:flex;gap:14px}
+     #top_bar .right{margin-left:auto}
+     #top_bar .buttons, .button{display:flex;gap:10px}
+     #top_bar .buttons > *, .button{cursor:pointer}
+     #top_bar .buttons > *:hover, .button:hover{color:#eee;cursor:pointer}
+     a{color:#aaa;text-decoration:none}
+     a:hover{color:#eee}
+     .hidden{display:none}
+     #options_form > :not(.show){display:none}
+    </style>
+    <script>
+     {{top_script}}
+    </script>
+  </head>
+  <body>
+    <div id="top_bar">
+      <div class="left">
+        <input id="file" type="file" class="hidden"/>
+        <select id="files"></select>
+        <select id="mode"></select>
+        <div id="options_form" class="hidden"></div>
+        <div class="buttons">
+          <div id="options">options</div>
+          <div id="save">save</div>
+          <div id="reset">reset</div>
+        </div>
+      </div>
+      <div class="right buttons">
+        <div id="font_decrease">font-</div>
+        <div id="font_increase">font+</div>
+        <div><a target="_blank" href="https://github.com/sph-mn/gridlearner">homepage</a></div>
+      </div>
+    </div>
+    <div id="grid">testcontent</div>
+    <script>
+     {{bottom_script}}
+    </script>
+  </body>
+</html>
