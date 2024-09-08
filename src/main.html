@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
   <head>
+    <link rel="icon" href="data:," />
     <meta charset="utf-8"/>
     <meta name="viewport" content="initial-scale=1"/>
     <title>gridlearner</title>
@@ -12,7 +13,7 @@
      input, label{margin:0 8px}
      #top_bar{position:fixed;top:0;width:100%;background-color:#000;border-bottom:1px solid #888;display:flex}
      #font-buttons{margin-left: auto}
-     #grid{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;padding:8px}
+     #grid{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;padding:8px;font-family:"Noto Sans SC"}
      #grid > *{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px}
      #grid > * > :nth-child(2){display:none}
      #grid > .selected > :nth-child(2){display:inline-block}
@@ -27,16 +28,13 @@
      .hidden{display:none}
      #options_form > :not(.show){display:none}
     </style>
-    <script>
-     {{top_script}}
-    </script>
   </head>
   <body>
     <div id="top_bar">
       <div class="left">
         <input id="file" type="file" class="hidden"/>
         <select id="files"></select>
-        <select id="mode"></select>
+        <select id="modes"></select>
         <div id="options_form" class="hidden"></div>
         <div class="buttons">
           <div id="options">options</div>
@@ -50,9 +48,16 @@
         <div><a target="_blank" href="https://github.com/sph-mn/gridlearner">homepage</a></div>
       </div>
     </div>
-    <div id="grid">testcontent</div>
+    <div id="grid"></div>
+    <style>
+      @font-face {
+        font-family: "Noto Sans SC";
+        src: url("data:font/ttf;base64,{{font}}") format("truetype");
+        font-weight: normal;font-style: normal;
+      }
+    </style>
     <script>
-     {{bottom_script}}
+     {{script}}
     </script>
   </body>
 </html>
