@@ -1,6 +1,7 @@
 #!./node_modules/coffeescript/bin/coffee
 
 fs = require "fs"
+uglify_js = require "uglify-js"
 coffee = require "coffeescript"
 read_text_file = (a) => fs.readFileSync a, "utf8"
 replace_placeholders = (text, mapping) -> text.replace /{{(.*?)}}/g, (_, k) -> mapping[k] or ""
@@ -8,6 +9,7 @@ replace_placeholders = (text, mapping) -> text.replace /{{(.*?)}}/g, (_, k) -> m
 papaparse = read_text_file "src/foreign/papaparse.js"
 crel = read_text_file "src/foreign/crel.js"
 main = coffee.compile(read_text_file("src/main.coffee"), bare: true)
+#main = "// gridlearner, https://github.com/sph-mn/gridlearner, license: gpl\n" + uglify_js.minify(main).code
 font = read_text_file "src/NotoSansSC-Light.ttf.base64"
 html = read_text_file "src/main.html"
 

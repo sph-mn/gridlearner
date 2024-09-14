@@ -33,9 +33,12 @@ class grid_mode_which_class extends grid_mode
 
 class grid_mode_single_class extends grid_mode
   name: "single"
-  options: hold_to_flip: false
+  options:
+    hold_to_flip: false
+    click_to_remove: false
   option_fields: [
     ["hold_to_flip", "boolean"]
+    ["click_to_remove", "boolean"]
   ]
   mousedown: (cell) -> cell.classList.toggle "selected"
   mouseup: (cell) -> @options.hold_to_flip and cell.classList.toggle("selected")
@@ -77,7 +80,7 @@ class grid_class
       @mode.mousedown and @mode.mousedown cell
     dom.grid.addEventListener "mouseup", (event) =>
       cell = event.target.closest "div[data-index]"
-      return unless cell
+      # call even without cell to handle situations where the mouse moved after mousedown
       @mode.mouseup and @mode.mouseup cell
   constructor: ->
     @modes = {
@@ -153,7 +156,7 @@ class file_select_class
     a = new Option "add", ""
     a.addEventListener "click", (event) -> dom.file.click()
     dom.files.appendChild a
-    Object.keys(@files).forEach (id) =>
+    for id in Object.keys @files
       b = new Option @files[id].name, id
       b.selected = true if id == @selection
       dom.files.appendChild b
