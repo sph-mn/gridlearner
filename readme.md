@@ -12,8 +12,8 @@ four modes are available:
 
 * pair: match questions with their corresponding answers
 * single: click to reveal one answer at a time
-* synonym: match questions that share the same answer
-* which: match one question to the correct answer among random answers
+* synonym: match questions which have the same answer
+* which: match each question to the right answer mixed between a few incorrect answers
 
 # installation
 the entire application is contained within a single html file. you can copy the file from the compiled/ directory and open it directly in a browser to use the application, even offline, as it does not require internet access.

@@ -11,24 +11,28 @@
      select{border:0;padding:0;margin:0;background-color:#000;color:#aaa}
      input[type=number]{width:40px}
      input, label{margin:0 8px}
+     a{color:#aaa;text-decoration:none}
+     a:hover{color:#eee}
+     .hidden{display:none}
      #top_bar{position:fixed;top:0;width:100%;background-color:#000;border-bottom:1px solid #888;display:flex}
-     #font-buttons{margin-left: auto}
-     #grid{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;padding:8px;font-family:"Noto Sans SC"}
-     #grid > *{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px}
-     #grid > * > :nth-child(2){display:none}
-     #grid[data-mode=single] > .selected > :nth-child(2){display:inline-block}
-     #grid[data-mode=single] > .selected > :nth-child(1){display:none}
-     #grid[data-mode=pair] > .selected{border:2px solid #aaa}
-     #grid[data-mode=synonym] > .selected{border:2px solid #aaa}
      #top_bar .left{display:flex;gap:14px}
      #top_bar .right{margin-left:auto}
      #top_bar .buttons, .button{display:flex;gap:10px}
      #top_bar .buttons > *, .button{cursor:pointer}
      #top_bar .buttons > *:hover, .button:hover{color:#eee;cursor:pointer}
-     a{color:#aaa;text-decoration:none}
-     a:hover{color:#eee}
-     .hidden{display:none}
      #options_form > :not(.show){display:none}
+     #font-buttons{margin-left: auto}
+     #grid{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;padding:8px;font-family:"Noto Sans SC"}
+     #grid > span{display:flex;gap:10px;}
+     #grid > div, #grid > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent}
+     #grid > .completed, #grid > span > .completed{opacity:0.5}
+     #grid > .selected, #grid > span > .selected{border:2px solid #aaa}
+     #grid[data-mode=single] > div > :nth-child(2){display:none}
+     #grid[data-mode=single] > .selected > :nth-child(1){display:none}
+     #grid[data-mode=single] > .selected > :nth-child(2){display:inline-block}
+     #grid[data-mode=single] > .selected{border:0}
+     #grid[data-mode=which]{column-gap: 80px}
+     #grid[data-mode=which] > span > :first-child{background-color:#000000aa}
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}

@@ -6,8 +6,11 @@ localStorageGetJsonItem = (key) ->
 
 localStorageSetJsonItem = (key, value) -> localStorage.setItem key, JSON.stringify(value)
 object_array_add = (object, key, value) -> (object[key] ?= []).push value
+random_element = (a) -> a[Math.random() * a.length // 1]
+random_insert = (a, b) -> a.splice Math.random() * a.length // 1, 0, b
 
 randomize = (a) ->
+  return a unless a.length
   for i in [a.length - 1..0]
     i2 = (Math.random() * (i + 1)) // 1
     [a[i], a[i2]] = [a[i2], a[i]]
@@ -18,48 +21,82 @@ class grid_mode
 
 class grid_mode_which_class extends grid_mode
   name: "which"
-  options: alternatives: 5
+  options: choices: 5
   option_fields: [
-    ["alternatives", "integer"]
+    ["choices", "integer"]
+    ["reverse", "boolean"]
   ]
-  set_option: (key, value) -> @options[key] = value
+  set_option: (key, value) ->
+    @options[key] = value
+    @update()
+  random_answers: (data, a, i, n) ->
+    result = []
+    answers_set = new Set()
+    while result.length < n
+      index = Math.floor Math.random() * data.length
+      answer = data[index]
+      unless answer == a or answers_set.has answer
+        result.push [index, answer]
+        answers_set.add answer
+    insert_index = Math.floor Math.random() * (n + 1)
+    result.splice insert_index, 0, [i, a]
+    result
   update: ->
     dom.grid.innerHTML = ""
+    for a, i in @grid.data
+      answers = @random_answers @grid.data, a, i, @options.choices
+      answers = for b in answers
+        answer = @grid.get_data_sides(b[1], @options.reverse)[1]
+        crel "div", {"data-index": b[0]}, crel("div", answer)
+      question = @grid.get_data_sides(a, @options.reverse)[0]
+      question = crel "div", {"data-index": i}, crel("div", question)
+      group = crel "span", question, answers
+      dom.grid.appendChild group
 
 class grid_mode_synonym_class extends grid_mode
   name: "synonym"
-  selection: []
+  selection: null
   update: ->
     dom.grid.innerHTML = ""
     groups = {}
     for a, i in @grid.data
       object_array_add groups, a[1], [i, a]
+    data = []
     for group in Object.values groups
       continue if 2 > group.length
-      for a in group
-        question = crel "div", a[1][0]
-        answer = crel "div", a[1].slice(1).join(" ")
-        div = crel "div", {"data-index": a[0]}, question, answer
-        dom.grid.appendChild div
+      data = data.concat group
+    for a in randomize data
+      [i, a] = a
+      [question, answer] = @grid.get_data_sides a
+      question = crel "div", question
+      div = crel "div", {"data-index": i, "data-answer": answer}, question
+      dom.grid.appendChild div
   mousedown: (cell, index) ->
-    if @selection.length
-      [selected_cell, selected_index] = @selection[0]
+    return if cell.classList.contains "completed"
+    if @selection
+      [selected_cell, selected_index] = @selection
       if selected_index == index
-        @selection = []
-        selected_cell.classList.remove "selected"
+        @selection = null
+        @grid.cell_set.not_selected selected_cell
+        cell.title = ""
         return
       a = @grid.data[selected_index]
       b = @grid.data[index]
       if a[1] == b[1]
-        cell.classList.add "hidden"
-        selected_cell.classList.add "hidden"
-        @selection = []
+        @grid.cell_set.not_selected cell
+        @grid.cell_set.not_selected selected_cell
+        @grid.cell_set.completed cell
+        @grid.cell_set.completed selected_cell
+        cell.title = cell.getAttribute "data-answer"
+        selected_cell.title = selected_cell.getAttribute "data-answer"
+        @selection = null
       else
         cell.classList.remove "pulsate"
         cell.classList.add "pulsate"
     else
-      @selection.push [cell, index]
-      cell.classList.add "selected"
+      @selection = [cell, index]
+      cell.title = cell.getAttribute "data-answer"
+      @grid.cell_set.selected cell
 
 class grid_mode_pair_class extends grid_mode
   name: "pair"
@@ -137,30 +174,65 @@ class grid_mode_single_class extends grid_mode
 class grid_class
   selection: []
   data: []
-  font_size: 42
-  key: space: 32
+  font_size: 64
+  cell_set: {}
+  cell_state_names: ["hidden", "selected", "completed"]
   get_config: ->
     {
       selection: @selection
       mode: @mode.name
       mode_options: @mode.options
       font_size: @font_size
+      cell_states: @get_cell_states()
     }
+  set_mode: (a) ->
+    @mode = a
+    dom.grid.setAttribute "data-mode", a.name
   set_config: (a) ->
-    if a.mode
-      @mode = @modes[a.mode]
-      dom.grid.setAttribute "data-mode", a.mode
+    @set_mode @modes[a.mode] if a.mode
     @mode.options = a.mode_options if a.mode_options
+    @cell_states = a.cell_states if a.cell_states
     @selection = a.selection if a.selection
     if a.font_size
       @font_size = a.font_size
       @update_font_size()
-  update: -> @mode.update()
+  update: ->
+    @mode.update()
+    @set_cell_states @cell_states
   update_font_size: -> dom.grid.style.fontSize = "#{@font_size}px"
+  for_each_cell: (f) ->
+    cells = dom.grid.children
+    return unless cells.length
+    if "SPAN" == cells[0].tagName
+      for group in cells
+        f a for a in group
+    else f a for a in cells
+  set_cell_states: (states) ->
+    @for_each_cell (cell) ->
+      data_index = cell.getAttribute "data-index"
+      classes = states[data_index]
+      return unless classes
+      cell.classList.add b for b in classes
+  get_cell_states: ->
+    cells = dom.grid.children
+    return {} unless cells.length
+    result = {}
+    @for_each_cell (cell) ->
+      classes = a.classList
+      state_classes = []
+      if classes.contains "hidden" then state_classes.push "hidden"
+      if classes.contains "selected" then state_classes.push "selected"
+      if classes.contains "completed" then state_classes.push "completed"
+      if state_classes.length then result[a.getAttribute("data-index")] = state_classes
+    result
   modify_font_size: (a) ->
     @font_size += a
     @update_font_size()
   mousedown_selection: null
+  get_data_sides: (a, is_reverse) ->
+    b = a[0]
+    c = a[1]
+    if is_reverse then [c, b] else [b, c]
   add_events: ->
     dom.grid.addEventListener "mousedown", (event) =>
       cell = event.target.closest "div[data-index]"
@@ -172,14 +244,16 @@ class grid_class
       # call even without cell to handle situations where the mouse moved after mousedown
       @mode.mouseup and @mode.mouseup.apply @mode, @mousedown_selection
   constructor: ->
+    @cell_state_names.forEach (a) =>
+      @cell_set[a] = (b) -> b.classList.add a
+      @cell_set["not_#{a}"] = (b) -> b.classList.remove a
     @modes = {
       single: new grid_mode_single_class @
       pair: new grid_mode_pair_class @
       synonym: new grid_mode_synonym_class @
       which: new grid_mode_which_class @
     }
-    @mode = @modes.single
-    dom.grid.setAttribute "data-mode", @mode.name
+    @set_mode @modes.single
     @add_events()
     @update_font_size()
 
@@ -228,7 +302,8 @@ class file_select_class
     @selection = null
     @save()
     @update_options()
-  save: -> localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
+  save: ->
+    localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
   load: ->
     a = localStorageGetJsonItem "files"
     return unless a
@@ -247,6 +322,7 @@ class file_select_class
     a.addEventListener "click", (event) -> dom.file.click()
     dom.files.appendChild a
     for id in Object.keys @files
+      id = parseInt id
       b = new Option @files[id].name, id
       b.selected = true if id == @selection
       dom.files.appendChild b
@@ -265,7 +341,7 @@ class file_select_class
         event.preventDefault()
     dom.files.addEventListener "change", (event) =>
       return unless event.target.value
-      @selection = parseInt event.target.value, 10
+      @selection = parseInt event.target.value
       @load_file_data @selection
       @hooks.change and @hooks.change()
       @save()
@@ -276,9 +352,6 @@ class file_select_class
     @add_events()
   get_file: -> @files[@selection]
   get_file_data: -> @file_data[@selection]
-  set_file: (id) ->
-    @selection = id
-    @load_file_data id
 
 class mode_select_class
   hooks:
@@ -375,7 +448,7 @@ class app_class
       return unless @file_select.selection?
       mode = @mode_select.get_mode()
       @configs[@file_select.selection].mode = mode
-      @grid.mode = @grid.modes[mode]
+      @grid.set_mode @grid.modes[mode]
       @grid.update()
       @save()
     @mode_select.hooks.set_grid_option = => @save()
