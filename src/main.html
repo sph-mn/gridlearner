@@ -14,10 +14,10 @@
      label > input{margin-left:4px;vertical-align:middle;width:auto}
      input[type=number]{width:3ch}
      ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;column-gap:8px}
-     li{list-style-type:none;flex-grow:1}
+     li{list-style-type:none;flex-grow:1;min-width:40px;border-radius:8px;overflow:hidden}
      #grid{display:flex;gap:8px;flex-wrap:wrap;padding:8px;font-family:"Noto Sans SC"}
      button:hover,select:hover,label:hover,input:hover{color:#eee}
-     #menu{position:sticky;top:0;width:100%;background-color:#000;border-bottom:1px solid #888}
+     #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
      #menu_button{display:none}
      #grid > span{display:flex;gap:10px}
      #grid > div, #grid > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent}
@@ -28,6 +28,9 @@
      #grid[data-mode=single] > .selected{border:0}
      #grid > .completed, #grid > span > .completed{opacity:0.5}
      .hidden{display:none}
+     #options_form > :not(.show){display:none}
+     #grid[data-mode=which]{column-gap: 80px}
+     #grid[data-mode=which] > span > :first-child{background-color:#000000aa}
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}
@@ -37,25 +40,10 @@
        animation: pulsate 200ms ease-in-out;
        animation-iteration-count: 1;
      }
-     /*
-     #options_form > :not(.show){display:none}
-     #font-buttons{margin-left: auto}
-     #grid[data-mode=which]{column-gap: 80px}
-     #grid[data-mode=which] > span > :first-child{background-color:#000000aa}
-     */
      @media (max-width: 700px) {
        xul{gap:16px}
-       ul li{flex-grow:1}
+       li{flex-grow:0;border:1px solid #444}
        button,a,select,label,input{height:40px}
-       /*
-       html{font-size:16px}
-       #menu_button{display:block;font-size:20px;text-align: center;border-top:1px solid #444}
-       #menu_content{display:none;flex-wrap:nowrap}
-       #menu.show_content #menu_content{display:flex}
-       #menu_content .left{display:block}
-       #menu_content .left > *, #menu_content .right > *{display:inline-block}
-       #menu_content .right{display:block;margin:0}
-       */
      }
     </style>
   </head>
@@ -70,22 +58,20 @@
           <select id="modes"></select>
         </li>
         <li>
-          <button id="options">⚙</button>
+          <button id="options" title="options">⚙</button>
+        </li>
+        <li id="options_form" class="hidden"></li>
+        <li>
+          <button id="save" title="save">↓</button>
         </li>
         <li>
-          <button id="save">↓</button>
+          <button id="reset" title="reset">⨯</button>
         </li>
         <li>
-          <button id="reset">⨯</button>
+          <button id="font_decrease" title="decrease font size">-</button>
         </li>
         <li>
-          <ul id="options_form" class="hidden"></ul>
-        </li>
-        <li>
-          <button id="font_decrease">-</button>
-        </li>
-        <li>
-          <button id="font_increase">+</button>
+          <button id="font_increase" title="increase font size">+</button>
         </li>
         <li>
           <button href="https://github.com/sph-mn/gridlearner">⌂</button>
@@ -94,6 +80,7 @@
       <div id="menu_button" class="button"><span>≡</span></div>
     </div>
     <div id="grid"></div>
+    <div id="hint"></div>
     <style>
      @font-face {
        font-family: "Noto Sans SC";

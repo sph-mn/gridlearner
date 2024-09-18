@@ -3,6 +3,8 @@ localStorageSetJsonItem = (key, value) -> localStorage.setItem key, JSON.stringi
 object_array_add = (object, key, value) -> (object[key] ?= []).push value
 random_element = (a) -> a[Math.random() * a.length // 1]
 random_insert = (a, b) -> a.splice Math.random() * a.length // 1, 0, b
+locale_sort = (a) -> a.slice().sort (a, b) -> a.localeCompare b
+locale_sort_index = (a, i) -> a.slice().sort (a, b) -> a[i].localeCompare b[i]
 
 localStorageGetJsonItem = (key) ->
   a = localStorage.getItem(key)
@@ -17,6 +19,128 @@ randomize = (a) ->
 
 class grid_mode
   constructor: (grid) -> @grid = grid
+
+class grid_mode_single_class extends grid_mode
+  name: "single"
+  options:
+    hold_to_flip: false
+    click_to_remove: false
+  option_fields: [
+    ["hold_to_flip", "boolean"]
+    ["click_to_remove", "boolean"]
+  ]
+  set_option: (key, value) -> @options[key] = value
+  mousedown: (cell) ->
+    return if @options.click_to_remove
+    cell.classList.toggle "selected"
+  mouseup: (cell) ->
+    if @options.click_to_remove then @grid.class_set.hidden cell
+    else @options.hold_to_flip and @grid.class_set.selected cell
+  update: ->
+    dom.grid.innerHTML = ""
+    for a, index in @grid.data
+      question = crel "div", a[0]
+      answer = crel "div", a.slice(1).join(" ")
+      dom.grid.appendChild crel "div", {"id": "q#{index}"}, question, answer
+
+class grid_mode_pair_class extends grid_mode
+  name: "pair"
+  selection: null
+  options:
+    mix: false
+    sort: false
+  option_fields: [
+    ["mix", "boolean"]
+    ["sort", "boolean"]
+  ]
+  set_option: (key, value) ->
+    @options[key] = value
+    @update()
+  mousedown: (cell) ->
+    return if cell.classList.contains "completed"
+    unless @selection
+      @selection = cell
+      @grid.class_set.selected cell
+      return
+    if @selection == cell
+      @grid.class_set.not_selected cell
+      @selection = null
+      return
+    if @selection.id[0] == cell.id[0]
+      @grid.pulsate cell
+      return
+    a = @grid.cell_data @selection
+    b = @grid.cell_data cell
+    if a[1] == b[1]
+      @grid.class_set.completed @selection
+      @grid.class_set.not_selected @selection
+      @grid.class_set.completed cell
+      @selection = null
+      return
+    @grid.pulsate cell
+  update: ->
+    @selection = null
+    dom.grid.innerHTML = ""
+    questions = []
+    answers = []
+    for a, i in @grid.data
+      [question, answer] = @grid.get_data_sides a
+      questions.push [question, "q#{i}"]
+      answers.push [answer, "a#{i}"]
+    if @options.mix
+      data = randomize questions.concat answers
+    else if @options.sort
+      data = locale_sort_index(questions, 0).concat locale_sort_index(answers, 0)
+    else data = randomize(questions).concat randomize answers
+    children = []
+    for a in data
+      dom.grid.appendChild crel("div", {id: a[1]}, crel("div", a[0]))
+
+class grid_mode_synonym_class extends grid_mode
+  name: "synonym"
+  selection: null
+  show_answer: (cell) ->
+    cell
+  update: ->
+    @selection = null
+    dom.grid.innerHTML = ""
+    groups = {}
+    for a, i in @grid.data
+      object_array_add groups, a[1], [a, i]
+    data = []
+    for group in Object.values groups
+      continue if 2 > group.length
+      data = data.concat group
+    for a in randomize data
+      [a, i] = a
+      [question, answer] = @grid.get_data_sides a
+      dom.grid.appendChild crel("div", {id: "q#{i}"}, crel("div", question))
+  mousedown: (cell) ->
+    if cell.classList.contains "completed"
+      @grid.show_hint cell.title
+      return
+    unless @selection
+      @selection = cell
+      @grid.class_set.selected cell
+      a = @grid.cell_data cell
+      cell.title = a[1]
+      @grid.show_hint cell.title
+      return
+    if @selection == cell
+      @grid.class_set.not_selected cell
+      cell.title = ""
+      @selection = null
+      return
+    a = @grid.cell_data @selection
+    b = @grid.cell_data cell
+    if a[1] == b[1]
+      @grid.class_set.completed @selection
+      @grid.class_set.not_selected @selection
+      @grid.class_set.completed cell
+      cell.title = @selection.title
+      @selection = null
+      return
+    @grid.pulsate cell
 
 class grid_mode_which_class extends grid_mode
   name: "which"
@@ -52,128 +176,19 @@ class grid_mode_which_class extends grid_mode
       group = crel "span", question, answers
       dom.grid.appendChild group
 
-class grid_mode_synonym_class extends grid_mode
-  name: "synonym"
-  selection: null
-  show_answer: (cell) ->
-    cell
-  update: ->
-    dom.grid.innerHTML = ""
-    groups = {}
-    for a, i in @grid.data
-      object_array_add groups, a[1], [i, a]
-    data = []
-    for group in Object.values groups
-      continue if 2 > group.length
-      data = data.concat group
-    for a in randomize data
-      [i, a] = a
-      [question, answer] = @grid.get_data_sides a
-      question = crel "div", question
-      div = crel "div", {"id": "q#{i}", "data-answer": answer}, question
-      dom.grid.appendChild div
-  mousedown: (cell) ->
-    return if cell.classList.contains "completed"
-    unless @selection
-      @selection = cell
-      cell.title = cell.getAttribute "data-answer"
-      @grid.cell_set.selected cell
-      return
-    if cell == @selection
-      @grid.cell_set.not_selected @selection
-      cell.title = ""
-      @selection = null
-      return
-    a = @grid.cell_data @selection
-    b = @grid.cell_data cell
-    if a[1] == b[1]
-      @grid.cell_set.not_selected @selection
-      @grid.cell_set.not_selected cell
-      @grid.cell_set.completed @selection
-      @grid.cell_set.completed cell
-      @enable_hint @selection
-      @enable_hint cell
-      @selection = null
-    else @grid.pulsate cell
-
-class grid_mode_pair_class extends grid_mode
-  name: "pair"
-  selection: null
-  options: mix: false
-  option_fields: [
-    ["mix", "boolean"]
-  ]
-  set_option: (key, value) ->
-    @options[key] = value
-    @update()
-  mousedown: (cell) ->
-    if @selection
-      if @selection == cell
-        cell.classList.remove "selected"
-        @selection = null
-        return
-      if @selection.getAttribute("data-type") == cell.getAttribute("data-type")
-        @grid.pulsate cell
-        return
-      a = @grid.cell_data @selection
-      b = @grid.cell_data cell
-      if a[1] == b[1]
-        @grid.cell_set.hidden cell
-        @grid.cell_set.hidden @selection
-        @selection = null
-      else @grid.pulsate cell
-    else
-      @selection = cell
-      @grid.cell_set.selected cell
-  update: ->
-    dom.grid.innerHTML = ""
-    questions = []
-    answers = []
-    for a, index in @grid.data
-      question = crel "div", a[0]
-      answer = crel "div", a.slice(1).join(" ")
-      questions.push crel("div", {"id": "q#{index}", "data-type": "question"}, question)
-      answers.push crel("div", {"id": "a#{index}", "data-type": "answer"}, answer)
-    if @options.mix
-      dom.grid.appendChild a for a in randomize questions.concat answers
-    else
-      dom.grid.appendChild a for a in randomize questions
-      dom.grid.appendChild a for a in randomize answers
-
-class grid_mode_single_class extends grid_mode
-  name: "single"
-  options:
-    hold_to_flip: false
-    click_to_remove: false
-  option_fields: [
-    ["hold_to_flip", "boolean"]
-    ["click_to_remove", "boolean"]
-  ]
-  set_option: (key, value) -> @options[key] = value
-  mousedown: (cell) ->
-    return if @options.click_to_remove
-    cell.classList.toggle "selected"
-  mouseup: (cell, index) ->
-    if @options.click_to_remove
-      cell.classList.add "hidden"
-    else
-      @options.hold_to_flip and cell.classList.toggle "selected"
-  update: ->
-    dom.grid.innerHTML = ""
-    for a, index in @grid.data
-      question = crel "div", a[0]
-      answer = crel "div", a.slice(1).join(" ")
-      dom.grid.appendChild crel "div", {"id": "q#{index}"}, question, answer
-
 class grid_class
-  selection: []
   data: []
   font_size: 10
-  cell_set: {}
+  class_set: {}
   cell_state_names: ["hidden", "selected", "completed"]
+  mousedown_selection: null
+  show_hint: (a) ->
+    dom.hint.innerHTML = a
+    @class_set.not_hidden dom.hint
+    clearTimeout @hint_timeout if @hint_timeout
+    @hint_timeout = setTimeout (=> @class_set.hidden dom.hint), 2000
   get_config: ->
     {
-      selection: @selection
       mode: @mode.name
       mode_options: @mode.options
       font_size: @font_size
@@ -186,7 +201,6 @@ class grid_class
     @set_mode @modes[a.mode] if a.mode
     @mode.options = a.mode_options if a.mode_options
     @cell_states = a.cell_states if a.cell_states
-    @selection = a.selection if a.selection
     if a.font_size
       @font_size = a.font_size
       @update_font_size()
@@ -228,7 +242,6 @@ class grid_class
   modify_font_size: (a) ->
     @font_size += a
     @update_font_size()
-  mousedown_selection: null
   get_data_sides: (a, is_reverse) ->
     b = a[0]
     c = a[1]
@@ -242,14 +255,16 @@ class grid_class
     mouseup = (event) =>
       # call even without cell to handle situations where the mouse moved after mousedown
       @mode.mouseup and @mode.mouseup @mousedown_selection
+      @mousedown_selection = null
     dom.grid.addEventListener "mousedown", mousedown
     dom.grid.addEventListener "mouseup", mouseup
-    dom.grid.addEventListener "touchstart", mousedown
-    dom.grid.addEventListener "touchend", mouseup
+    dom.grid.addEventListener "touchend", (event) ->
+      mousedown event
+      mouseup event
   constructor: ->
     @cell_state_names.forEach (a) =>
-      @cell_set[a] = (b) -> b.classList.add a
-      @cell_set["not_#{a}"] = (b) -> b.classList.remove a
+      @class_set[a] = (b) -> b.classList.add a
+      @class_set["not_#{a}"] = (b) -> b.classList.remove a
     @modes = {
       single: new grid_mode_single_class @
       pair: new grid_mode_pair_class @
