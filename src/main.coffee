@@ -32,10 +32,10 @@ class grid_mode_single_class extends grid_mode
   set_option: (key, value) -> @options[key] = value
   mousedown: (cell) ->
     return if @options.click_to_remove
-    cell.classList.toggle "selected"
+    @grid.class_set.selected cell
   mouseup: (cell) ->
     if @options.click_to_remove then @grid.class_set.hidden cell
-    else @options.hold_to_flip and @grid.class_set.selected cell
+    else @options.hold_to_flip and @grid.class_set.not_selected cell
   update: ->
     dom.grid.innerHTML = ""
     for a, index in @grid.data
@@ -57,7 +57,10 @@ class grid_mode_pair_class extends grid_mode
     @options[key] = value
     @update()
   mousedown: (cell) ->
-    return if cell.classList.contains "completed"
+    if cell.classList.contains "completed"
+      id = (if "q" == cell.id[0] then "a" else "q") + cell.id.substring(1)
+      @grid.pulsate document.getElementById id
+      return
     unless @selection
       @selection = cell
       @grid.class_set.selected cell
@@ -78,6 +81,7 @@ class grid_mode_pair_class extends grid_mode
       @selection = null
       return
     @grid.pulsate cell
+  mouseup: ->
   update: ->
     @selection = null
     dom.grid.innerHTML = ""
@@ -107,16 +111,27 @@ class grid_mode_synonym_class extends grid_mode
     groups = {}
     for a, i in @grid.data
       object_array_add groups, a[1], [a, i]
+    @odd = {}
     data = []
-    for group in Object.values groups
+    for answer, group of groups
       continue if 2 > group.length
       data = data.concat group
+      @odd[answer] = new Set(a[1] for a in group) if group.length & 1
     for a in randomize data
       [a, i] = a
       [question, answer] = @grid.get_data_sides a
       dom.grid.appendChild crel("div", {id: "q#{i}"}, crel("div", question))
+  mouseup: ->
   mousedown: (cell) ->
     if cell.classList.contains "completed"
+      if @selection && @selection.classList.contains "last"
+        a = @grid.cell_data @selection
+        b = @grid.cell_data cell
+        if a[1] == b[1]
+          @grid.class_set.completed @selection
+          @grid.class_set.not_selected @selection
+          @selection = null
+        return
       @grid.show_hint cell.title
       return
     unless @selection
@@ -138,6 +153,14 @@ class grid_mode_synonym_class extends grid_mode
       @grid.class_set.not_selected @selection
       @grid.class_set.completed cell
       cell.title = @selection.title
+      remaining = @odd[a[1]]
+      if remaining
+        remaining.delete @grid.cell_data_index @selection
+        remaining.delete @grid.cell_data_index cell
+        if 1 == remaining.size
+          index = remaining.values().next().value
+          @odd[a[1]] = null
+          document.getElementById("q#{index}").classList.add "last"
       @selection = null
       return
     @grid.pulsate cell
@@ -164,6 +187,10 @@ class grid_mode_which_class extends grid_mode
     insert_index = Math.floor Math.random() * (n + 1)
     result.splice insert_index, 0, [i, a]
     result
+  mouseup: ->
+  mousedown: (cell) ->
+    group = cell.parentNode
+    console.log group
   update: ->
     dom.grid.innerHTML = ""
     for a, i in @grid.data
@@ -180,13 +207,13 @@ class grid_class
   data: []
   font_size: 10
   class_set: {}
-  cell_state_names: ["hidden", "selected", "completed"]
+  cell_state_names: ["hidden", "selected", "completed", "invisible", "last"]
   mousedown_selection: null
   show_hint: (a) ->
     dom.hint.innerHTML = a
-    @class_set.not_hidden dom.hint
+    @class_set.not_invisible dom.hint
     clearTimeout @hint_timeout if @hint_timeout
-    @hint_timeout = setTimeout (=> @class_set.hidden dom.hint), 2000
+    @hint_timeout = setTimeout (=> @class_set.invisible dom.hint), 1000
   get_config: ->
     {
       mode: @mode.name
@@ -248,17 +275,17 @@ class grid_class
     if is_reverse then [c, b] else [b, c]
   add_events: ->
     mousedown = (event) =>
-      cell = event.target.closest "#grid > span > div, #grid > div"
+      cell = event.target.closest "#grid > div,#grid > span > div"
       return unless cell
       @mousedown_selection = cell
-      @mode.mousedown and @mode.mousedown @mousedown_selection
+      @mode.mousedown @mousedown_selection
     mouseup = (event) =>
-      # call even without cell to handle situations where the mouse moved after mousedown
-      @mode.mouseup and @mode.mouseup @mousedown_selection
+      return unless @mousedown_selection
+      @mode.mouseup @mousedown_selection
       @mousedown_selection = null
     dom.grid.addEventListener "mousedown", mousedown
-    dom.grid.addEventListener "mouseup", mouseup
-    dom.grid.addEventListener "touchend", (event) ->
+    document.body.addEventListener "mouseup", mouseup
+    document.body.addEventListener "touchend", (event) ->
       mousedown event
       mouseup event
   constructor: ->
@@ -326,7 +353,7 @@ class file_select_class
     a = localStorageGetJsonItem "files"
     return unless a
     @files = a.files
-    @selection = a.selection
+    @selection = parseInt a.selection, 10
     @next_id = a.next_id
     @update_options()
   save_file_data: (id) -> localStorageSetJsonItem "file_data_#{id}", @file_data[id]
@@ -404,21 +431,17 @@ class mode_select_class
   hide_selected_option_fields: -> @mode_option_fields[@selection]?.classList.remove "show"
   show_selected_option_fields: ->
     selected_option_fields = @mode_option_fields[@selection]
-    if selected_option_fields
-      dom.options.classList.remove "hidden"
-      selected_option_fields.classList.add "show"
-    else
-      dom.options_form.classList.add "hidden"
-      dom.options.classList.add "hidden"
+    if selected_option_fields then selected_option_fields.classList.add "show"
+    else dom.options.classList.add "hidden"
   update_options: (grid_modes) ->
-    dom.options_form.innerHTML = ""
+    dom.mode_options.innerHTML = ""
     for name, i in @modes
       mode = grid_modes[name]
       option_fields = @make_option_fields mode
       if option_fields
         div = crel "ul", option_fields
         @mode_option_fields[i] = div
-        dom.options_form.appendChild div
+        dom.mode_options.appendChild div
       else @mode_option_fields[i] = null
     @show_selected_option_fields()
   constructor: (modes) ->
@@ -430,7 +453,7 @@ class mode_select_class
       @selection = parseInt event.target.value
       @hooks.change && @hooks.change()
       @show_selected_option_fields()
-    dom.options.addEventListener "click", (event) -> dom.options_form.classList.toggle "hidden"
+    dom.options_button.addEventListener "click", (event) -> dom.options.classList.toggle "hidden"
 
 class app_class
   file_select: new file_select_class
@@ -450,6 +473,7 @@ class app_class
     dom.menu_button.addEventListener "click", =>
       console.log "toggle"
       dom.menu.classList.toggle "show_content"
+    dom.homepage.addEventListener "click", -> window.open dom.homepage.getAttribute("href"), "_blank"
   save: ->
     @configs[@file_select.selection] = @grid.get_config() if @file_select.selection?
     localStorageSetJsonItem "app", configs: @configs

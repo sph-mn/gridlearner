@@ -6,20 +6,20 @@
     <meta name="viewport" content="initial-scale=1"/>
     <title>gridlearner</title>
     <style>
-     *{box-sizing:border-box}
-     html{font-size:24px;font-family:monospace,sans-serif}
-     body{background-color:#444;color:#aaa;margin:0}
+     *,*::before,*::after{box-sizing:border-box}
+     html{font-size:24px;font-family:"Noto Sans SC",monospace,sans-serif;height:100%}
+     body{background-color:#444;color:#aaa;margin:0;height:100%}
      input, label{white-space:nowrap}
      button,a,select,label,input{padding:0;margin:0;vertical-align:top;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:30px;width:100%}
      label > input{margin-left:4px;vertical-align:middle;width:auto}
      input[type=number]{width:3ch}
-     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;column-gap:8px}
-     li{list-style-type:none;flex-grow:1;min-width:40px;border-radius:8px;overflow:hidden}
+     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;gap:8px}
+     li{list-style-type:none;flex-grow:1;min-width:40px;overflow:hidden}
      #grid{display:flex;gap:8px;flex-wrap:wrap;padding:8px;font-family:"Noto Sans SC"}
      button:hover,select:hover,label:hover,input:hover{color:#eee}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
      #menu_button{display:none}
-     #grid > span{display:flex;gap:10px}
+     #grid > span{display:flex;gap:4px}
      #grid > div, #grid > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent}
      #grid > .selected, #grid > span > .selected{border:2px solid #aaa}
      #grid[data-mode=single] > div > :nth-child(2){display:none}
@@ -27,10 +27,13 @@
      #grid[data-mode=single] > .selected > :nth-child(2){display:inline-block}
      #grid[data-mode=single] > .selected{border:0}
      #grid > .completed, #grid > span > .completed{opacity:0.5}
-     .hidden{display:none}
-     #options_form > :not(.show){display:none}
+     #mode_options > :not(.show){display:none}
      #grid[data-mode=which]{column-gap: 80px}
      #grid[data-mode=which] > span > :first-child{background-color:#000000aa}
+     #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
+     #options{border:0}
+     .hidden{display:none}
+     .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}
@@ -41,8 +44,8 @@
        animation-iteration-count: 1;
      }
      @media (max-width: 700px) {
-       xul{gap:16px}
-       li{flex-grow:0;border:1px solid #444}
+       li{border:1px solid #444;border-top:0;border-bottom:0}
+       li li{border:0}
        button,a,select,label,input{height:40px}
      }
     </style>
@@ -54,13 +57,22 @@
         <li>
           <select id="files"></select>
         </li>
-        <li>
-          <select id="modes"></select>
+        <li id="options_button_container">
+          <button id="options_button" title="options">⚙</button>
         </li>
-        <li>
-          <button id="options" title="options">⚙</button>
+        <li id="options" class="hidden">
+          <label><span>mode:</span> <select id="modes"></select></label>
+          <div id="mode_options">
+          </div>
+          <ul>
+            <li>
+              <button id="font_decrease" title="decrease font size">font-</button>
+            </li>
+            <li>
+              <button id="font_increase" title="increase font size">font+</button>
+            </li>
+          </ul>
         </li>
-        <li id="options_form" class="hidden"></li>
         <li>
           <button id="save" title="save">↓</button>
         </li>
@@ -68,19 +80,13 @@
           <button id="reset" title="reset">⨯</button>
         </li>
         <li>
-          <button id="font_decrease" title="decrease font size">-</button>
-        </li>
-        <li>
-          <button id="font_increase" title="increase font size">+</button>
-        </li>
-        <li>
-          <button href="https://github.com/sph-mn/gridlearner">⌂</button>
+          <button id="homepage" href="https://github.com/sph-mn/gridlearner">⌂</button>
         </li>
       </ul>
       <div id="menu_button" class="button"><span>≡</span></div>
     </div>
     <div id="grid"></div>
-    <div id="hint"></div>
+    <div id="hint" class="invisible"></div>
     <style>
      @font-face {
        font-family: "Noto Sans SC";
