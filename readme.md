@@ -1,6 +1,7 @@
 # gridlearner
 
-*status: in development, single and pair modes rudimentarily functional*
+![](other/screenshots/1.png?raw=true)
+![](other/screenshots/2.png?raw=true)
 
 single-file web application for displaying pairs from space-separated dsv file content in grid format.
 the grids function as interactive, spatial memory-matching learning games, loosely akin to the game "concentration" or flashcards.
@@ -8,12 +9,12 @@ this application is useful for memorizing new information and reinforcing recall
 
 hosted [here](https://sph.mn/other/utilities/gridlearner.html).
 
-four modes are available:
+four game modes are available:
 
+* which: match each question to the right answer inbetween incorrect answers
 * pair: match questions with their corresponding answers
-* single: click to reveal one answer at a time
 * synonym: match questions which have the same answer
-* which: match each question to the right answer mixed between a few incorrect answers
+* single: click to reveal one answer at a time
 
 # installation
 the entire application is contained within a single html file. you can copy the file from the compiled/ directory and open it directly in a browser to use the application, even offline, as it does not require internet access.

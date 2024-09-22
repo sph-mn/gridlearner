@@ -6,6 +6,14 @@ random_insert = (a, b) -> a.splice Math.random() * a.length // 1, 0, b
 locale_sort = (a) -> a.slice().sort (a, b) -> a.localeCompare b
 locale_sort_index = (a, i) -> a.slice().sort (a, b) -> a[i].localeCompare b[i]
 
+interleave = (a, b) ->
+  c = []
+  max_length = Math.max a.length, b.length
+  for i in [0...max_length]
+    c.push a[i] if i < a.length
+    c.push b[i] if i < b.length
+  c
+
 localStorageGetJsonItem = (key) ->
   a = localStorage.getItem(key)
   if a then JSON.parse(a) else null
@@ -22,14 +30,8 @@ class grid_mode
 
 class grid_mode_single_class extends grid_mode
   name: "single"
-  options:
-    hold_to_flip: false
-  option_fields: [
-    ["hold_to_flip", "boolean"]
-  ]
-  set_option: (key, value) -> @options[key] = value
-  mousedown: (cell) -> cell.classList.toggle "selected"
-  mouseup: (cell) -> @options.hold_to_flip and @grid.class_set.not_selected cell
+  pointerdown: (cell) -> cell.classList.toggle "selected"
+  pointerup: (cell) ->
   update: ->
     @grid.dom_clear()
     for a, index in @grid.data
@@ -42,17 +44,10 @@ class grid_mode_single_class extends grid_mode
 class grid_mode_pair_class extends grid_mode
   name: "pair"
   selection: null
-  options:
-    mix: false
-    sort: true
-  option_fields: [
-    ["mix", "boolean"]
-    ["sort", "boolean"]
-  ]
   set_option: (key, value) ->
     @options[key] = value
     @update()
-  mousedown: (cell) ->
+  pointerdown: (cell) ->
     if cell.classList.contains "completed"
       id = (if "q" == cell.id[0] then "a" else "q") + cell.id.substring(1)
       @grid.pulsate document.getElementById id
@@ -77,7 +72,7 @@ class grid_mode_pair_class extends grid_mode
       @selection = null
       return
     @grid.pulsate cell
-  mouseup: ->
+  pointerup: ->
   update: () ->
     @selection = null
     @grid.dom_clear()
@@ -87,11 +82,7 @@ class grid_mode_pair_class extends grid_mode
       [question, answer] = @grid.get_data_sides a
       questions.push [question, "q#{i}"]
       answers.push [answer, "a#{i}"]
-    if @options.mix
-      data = randomize questions.concat answers
-    else if @options.sort
-      data = locale_sort_index(questions, 0).concat locale_sort_index(answers, 0)
-    else data = randomize(questions).concat randomize answers
+    data = interleave locale_sort_index(questions, 0), locale_sort_index(answers, 0)
     children = []
     for a in data
       cell = crel "div", {id: a[1]}, crel("div", a[0])
@@ -101,19 +92,22 @@ class grid_mode_pair_class extends grid_mode
 class grid_mode_synonym_class extends grid_mode
   name: "synonym"
   selection: null
-  show_answer: (cell) ->
-    cell
-  mouseup: ->
-  mousedown: (cell) ->
+  pointerup: ->
+  pointerdown: (cell) ->
     if cell.classList.contains "completed"
       if @selection && @selection.classList.contains "last"
         a = @grid.cell_data @selection
         b = @grid.cell_data cell
-        if a[1] == b[1]
+        answer = a[1]
+        if b[1] == answer
           @grid.class_set.completed @selection
           @grid.class_set.not_selected @selection
+          object_array_add @completed, answer, @selection
           @selection = null
         return
+      a = @grid.cell_data cell
+      for b in @completed[a[1]]
+        @grid.pulsate b unless b == cell
       @grid.show_hint cell.title
       return
     unless @selection
@@ -130,18 +124,21 @@ class grid_mode_synonym_class extends grid_mode
       return
     a = @grid.cell_data @selection
     b = @grid.cell_data cell
-    if a[1] == b[1]
+    answer = a[1]
+    if b[1] == answer
       @grid.class_set.completed @selection
       @grid.class_set.not_selected @selection
       @grid.class_set.completed cell
-      cell.title = @selection.title
-      remaining = @odd[a[1]]
+      cell.title = answer
+      object_array_add @completed, answer, @selection
+      object_array_add @completed, answer, cell
+      remaining = @odd_remaining[answer]
       if remaining
         remaining.delete @grid.cell_data_index @selection
         remaining.delete @grid.cell_data_index cell
         if 1 == remaining.size
           index = remaining.values().next().value
-          @odd[a[1]] = null
+          @odd_remaining[a[1]] = null
           document.getElementById("q#{index}").classList.add "last"
       @selection = null
       return
@@ -152,12 +149,14 @@ class grid_mode_synonym_class extends grid_mode
     groups = {}
     for a, i in @grid.data
       object_array_add groups, a[1], [a, i]
-    @odd = {}
+    @completed = {}
+    @odd_remaining = {}
     data = []
     for answer, group of groups
       continue if 2 > group.length
       data = data.concat group
-      @odd[answer] = new Set(a[1] for a in group) if group.length & 1
+      if group.length & 1
+        @odd_remaining[answer] = new Set(a[1] for a in group)
     for a in randomize data
       [a, i] = a
       [question, answer] = @grid.get_data_sides a
@@ -181,20 +180,24 @@ class grid_mode_which_class extends grid_mode
     while result.length < n
       index = Math.floor Math.random() * data.length
       answer = data[index]
-      unless answer == a or answers_set.has answer
+      unless answer[1] == a[1] or answers_set.has answer[1]
         result.push [index, answer]
-        answers_set.add answer
+        answers_set.add answer[1]
     insert_index = Math.floor Math.random() * (n + 1)
     result.splice insert_index, 0, [i, a]
     result
-  mouseup: (cell) ->
+  pointerup: (cell) ->
     return if cell.parentNode.children[0] == cell
     return if cell.parentNode.classList.contains "completed"
     if "a" == cell.id[0]
       @grid.class_set.completed cell.parentNode
-      @grid.dom_footer.appendChild cell.parentNode
-    else @grid.pulsate cell
-  mousedown: (cell) ->
+    else
+      @grid.pulsate cell
+      mistakes = cell.parentNode.getAttribute "data-mistakes"
+      if mistakes then mistakes = Math.min 4, parseInt(mistakes) + 1
+      else mistakes = 1
+      cell.parentNode.setAttribute "data-mistakes", mistakes
+  pointerdown: (cell) ->
   update: ->
     @grid.dom_clear()
     for a, i in @grid.data
@@ -210,15 +213,18 @@ class grid_mode_which_class extends grid_mode
       question = crel "div", crel("div", question)
       group = crel "span", {"id": "q#{i}"}, question, answers
       @grid.add_cell_states group
-      if group.classList.contains "completed" then @grid.dom_footer.appendChild group
-      else @grid.dom_main.appendChild group
+      @grid.dom_main.appendChild group
 
 class grid_class
   data: []
   font_size: 10
   class_set: {}
-  cell_state_names: ["hidden", "selected", "completed", "invisible", "last"]
-  mousedown_selection: null
+  cell_state_classes: ["hidden", "selected", "completed", "last"]
+  cell_state_attributes: ["data-mistakes"]
+  pointerdown_selection: null
+  reset: ->
+    @cell_states = {}
+    @mode.update()
   dom_main: dom.grid.children[0]
   dom_footer: dom.grid.children[1]
   dom_clear: (a) ->
@@ -266,18 +272,25 @@ class grid_class
             f cell for cell in group.children
         when "DIV" then f cell for cell in section.children
   add_cell_states: (cell) ->
-    classes = @cell_states[cell.id]
-    cell.classList.add b for b in classes if classes
+    state = @cell_states[cell.id]
+    return unless state
+    if state.class
+      cell.classList.add b for b in state.class
+      delete state.class
+    cell.setAttribute name, value for name, value of state
   get_cell_states: ->
-    result = {}
-    @for_each_cell (cell) ->
-      classes = cell.classList
+    states = {}
+    @for_each_cell (cell) =>
+      state = {}
       state_classes = []
-      if classes.contains "hidden" then state_classes.push "hidden"
-      if classes.contains "selected" then state_classes.push "selected"
-      if classes.contains "completed" then state_classes.push "completed"
-      if state_classes.length then result[cell.id] = state_classes
-    result
+      for name in @cell_state_classes
+        state_classes.push name if cell.classList.contains name
+      state.class = state_classes if state_classes.length
+      for name in @cell_state_attributes
+        value = cell.getAttribute name
+        state[name] = value if value
+      states[cell.id] = state if Object.keys(state).length
+    states
   modify_font_size: (a) ->
     @font_size += a
     @update_font_size()
@@ -292,22 +305,25 @@ class grid_class
       a = a.parentNode
     false
   add_events: ->
-    mousedown = (event) =>
+    pointerdown = (event) =>
       cell = @get_cell_from_event_target event.target
       return unless cell
-      @mousedown_selection = cell
-      @mode.mousedown @mousedown_selection
-    mouseup = (event) =>
-      return unless @mousedown_selection
-      @mode.mouseup @mousedown_selection
-      @mousedown_selection = null
-    dom.grid.addEventListener "mousedown", mousedown
-    document.body.addEventListener "mouseup", mouseup
-    document.body.addEventListener "touchend", (event) ->
-      mousedown event
-      mouseup event
+      @pointerdown_selection = cell
+      @mode.pointerdown cell if event.pointerType == "mouse"
+    pointerup = (event) =>
+      return unless @pointerdown_selection
+      cell = @get_cell_from_event_target event.target
+      return unless cell
+      if event.pointerType == "mouse" then @mode.pointerup cell
+      else if event.pointerType == "touch"
+        if @pointerdown_selection == cell
+          @mode.pointerdown cell
+          @mode.pointerup cell
+      @pointerdown_selection = null
+    dom.grid.addEventListener "pointerdown", pointerdown
+    document.body.addEventListener "pointerup", pointerup
   constructor: ->
-    @cell_state_names.forEach (a) =>
+    @cell_state_classes.forEach (a) =>
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a
     @modes = {
@@ -324,6 +340,7 @@ class file_select_class
   hooks:
     add: null
     change: null
+    delete: null
   selection: null
   next_id: 1
   files: {}
@@ -345,33 +362,34 @@ class file_select_class
     return unless @selection?
     id = @selection
     a = @files[id]
-    return unless confirm "delete file #{a.name}?"
+    unless confirm "delete file #{a.name}?"
+      dom.files.value = id
+      return
     localStorage.removeItem "file_data_#{id}"
     delete @files[id]
     delete @file_data[id]
     ids = Object.keys @files
-    @selection = if ids.length then ids[ids.length - 1] else null
+    @selection = if ids.length then ids[0] else null
     @save()
     @hooks.delete && @hooks.delete id
     @update_options()
-  clear_files: ->
+  reset: ->
     localStorage.removeItem "files"
     ids = Object.keys @files
-    for id in ids
-      localStorage.removeItem "file_data_#{id}"
-      @hooks.delete id if @hooks.delete
     @files = {}
     @file_data = {}
     @selection = null
-    @save()
     @update_options()
+    for id in ids
+      localStorage.removeItem "file_data_#{id}"
+      @hooks.delete id if @hooks.delete
   save: ->
     localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
   load: ->
     a = localStorageGetJsonItem "files"
     return unless a
     @files = a.files
-    @selection = parseInt a.selection, 10
+    @selection = if a.selection then parseInt(a.selection) else null
     @next_id = a.next_id
     @update_options()
   save_file_data: (id) -> localStorageSetJsonItem "file_data_#{id}", @file_data[id]
@@ -382,7 +400,9 @@ class file_select_class
   update_options: ->
     dom.files.innerHTML = ""
     a = new Option "add", ""
-    a.addEventListener "click", (event) -> dom.file.click()
+    a.addEventListener "click", (event) =>
+      dom.files.value = @selection if @selection?
+      dom.file.click()
     dom.files.appendChild a
     for id in Object.keys @files
       id = parseInt id
@@ -399,6 +419,7 @@ class file_select_class
       @add event.target.files[0]
     dom.files.addEventListener "click", (event) =>
       unless @selection?
+        dom.files.value = @selection if @selection?
         dom.file.click()
         event.stopPropagation()
         event.preventDefault()
@@ -473,21 +494,37 @@ class mode_select_class
       @show_selected_option_fields()
     dom.options_button.addEventListener "click", (event) -> dom.options.classList.toggle "hidden"
 
+class fasttap_detector_class
+  tap_count: 0
+  last_tap_time: 0
+  constructor: (n, timeout_duration) ->
+    @n = n
+    @timeout_duration = if timeout_duration? then timeout_duration else 300
+  detect: ->
+    current_time = Date.now()
+    if current_time - @last_tap_time < @timeout_duration then @tap_count += 1
+    else @tap_count = 1
+    @last_tap_time = current_time
+    if @tap_count >= @n
+      @tap_count = 0
+      true
+    else false
+
 class app_class
   file_select: new file_select_class
   grid: new grid_class
   configs: {}
+  fasttap_detector: new fasttap_detector_class 5
   add_events: ->
-    dom.save.addEventListener "click", (event) =>
-      @save()
-    dom.reset.addEventListener "click", (event) =>
-      @grid.reset()
+    dom.save.addEventListener "click", (event) => @save()
+    dom.reset.addEventListener "pointerup", (event) =>
+      if @fasttap_detector.detect() then @reset()
+      else @grid.reset()
     dom.font_increase.addEventListener "click", (event) => @grid.modify_font_size 2
     dom.font_decrease.addEventListener "click", (event) => @grid.modify_font_size -2
-    dom.menu_button.addEventListener "click", =>
-      console.log "toggle"
-      dom.menu.classList.toggle "show_content"
-    dom.homepage.addEventListener "click", -> window.open dom.homepage.getAttribute("href"), "_blank"
+  reset: ->
+    localStorage.removeItem "app"
+    @file_select.reset()
   save: ->
     @configs[@file_select.selection] = @grid.get_config() if @file_select.selection?
     localStorageSetJsonItem "app", configs: @configs

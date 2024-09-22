@@ -17,7 +17,6 @@
      li{list-style-type:none;flex-grow:1;min-width:40px;overflow:hidden}
      button:hover,select:hover,label:hover,input:hover{color:#eee}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
-     #menu_button{display:none}
      #grid > *{display:flex;gap:8px;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:4px;flex-wrap:wrap}
      #grid > * > div,#grid > * > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
@@ -28,13 +27,17 @@
      #grid[data-mode=single] > main > div.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=single] > main > div.selected{border:0}
      #grid[data-mode=which] > * > * > :first-child:active{border-color:transparent}
-     #grid[data-mode=which] > footer > * > [id]{opacity:0.5}
+     #grid[data-mode=which] > main > .completed > [id]{opacity:0.5}
+     #grid[data-mode=which] > main > .completed > :not([id],:first-child){display:none}
      #grid[data-mode=which] > main{column-gap:1.1em}
-     #grid[data-mode=which] > footer > * > :not([id],:first-child){display:none}
      #grid[data-mode=which] > * > span > :first-child{background-color:#000000aa}
+     #grid > main> span[data-mistakes="1"] > :first-child{background-color:#222}
+     #grid > main > span[data-mistakes="2"] > :first-child{background-color:#333}
+     #grid > main > span[data-mistakes="3"] > :first-child{background-color:#555}
+     #grid > main > span[data-mistakes="4"] > :first-child{background-color:#666}
      #mode_options > :not(.show){display:none}
      #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
-     #options{border:0}
+     #options{border:0;width:100%}
      .hidden{display:none}
      .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
      @keyframes pulsate {
@@ -57,36 +60,19 @@
     <input id="file" type="file" class="hidden"/>
     <div id="menu">
       <ul id="menu_content">
-        <li>
-          <select id="files"></select>
-        </li>
-        <li id="options_button_container">
-          <button id="options_button" title="options">⚙</button>
-        </li>
+        <li><select id="files"></select></li>
+        <li id="options_button_container"><button id="options_button" title="options">⚙</button></li>
         <li id="options" class="hidden">
           <label><span>mode:</span> <select id="modes"></select></label>
-          <div id="mode_options">
-          </div>
+          <div id="mode_options"></div>
           <ul>
-            <li>
-              <button id="font_decrease" title="decrease font size">font-</button>
-            </li>
-            <li>
-              <button id="font_increase" title="increase font size">font+</button>
-            </li>
+            <li><button id="font_decrease" title="decrease font size">font-</button></li>
+            <li><button id="font_increase" title="increase font size">font+</button></li>
           </ul>
         </li>
-        <li>
-          <button id="save" title="save">↓</button>
-        </li>
-        <li>
-          <button id="reset" title="reset">⨯</button>
-        </li>
-        <li>
-          <button id="homepage" href="https://github.com/sph-mn/gridlearner">⌂</button>
-        </li>
+        <li><button id="save" title="save">↓</button></li>
+        <li><button id="reset" title="reset">⨯</button></li>
       </ul>
-      <div id="menu_button" class="button"><span>≡</span></div>
     </div>
     <div id="grid"><main></main><footer></footer></div>
     <div id="hint" class="invisible"></div>
