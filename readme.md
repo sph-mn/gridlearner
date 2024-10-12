@@ -10,8 +10,7 @@ this application is useful for memorizing new information and reinforcing recall
 hosted [here](https://sph.mn/other/utilities/gridlearner.html).
 
 four game modes are available:
-
-* which: match each question to the right answer inbetween incorrect answers
+* multiple choice: match each question to the right answer mixed with incorrect answers
 * pair: match questions with their corresponding answers
 * synonym: match questions which have the same answer
 * single: click to reveal one answer at a time

@@ -10,12 +10,12 @@
      html{font-size:24px;font-family:"Noto Sans SC",monospace,sans-serif;height:100%}
      body{background-color:#444;color:#aaa;margin:0;height:100%}
      input, label{white-space:nowrap}
-     button,a,select,label,input{padding:0;margin:0;vertical-align:top;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:30px;width:100%}
+     button,a,select,label,input{padding:0;margin:0;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:50px;width:100%}
      label > input{margin-left:4px;vertical-align:middle;width:auto}
      input[type=number]{width:3ch}
-     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;gap:8px}
+     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;column-gap:8px}
      li{list-style-type:none;flex-grow:1;min-width:40px;overflow:hidden}
-     button:hover,select:hover,label:hover,input:hover{color:#eee}
+     button:hover,select:hover,label:hover,input:hover,button:active{color:#eee}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
      #grid > *{display:flex;gap:8px;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:4px;flex-wrap:wrap}
@@ -35,11 +35,15 @@
      #grid > main > span[data-mistakes="2"] > :first-child{background-color:#333}
      #grid > main > span[data-mistakes="3"] > :first-child{background-color:#555}
      #grid > main > span[data-mistakes="4"] > :first-child{background-color:#666}
+     #modes{max-width:4rem;text-align:right}
      #mode_options > :not(.show){display:none}
      #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
      #options{border:0;width:100%}
+     #menu_content.show_options #options{display:block;border:1px dotted #aaa;border-left-width:0;border-right-width:0}
+     #menu_content.show_options #options_button{color:#eee}
      .hidden{display:none}
      .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
+     #menu_content > :first-child, #menu_content > :last-child{flex-grow:0}
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}
@@ -71,7 +75,7 @@
           </ul>
         </li>
         <li><button id="save" title="save">↓</button></li>
-        <li><button id="reset" title="reset">⨯</button></li>
+        <li><button id="reset" title="reset">↺</button></li>
       </ul>
     </div>
     <div id="grid"><main></main><footer></footer></div>

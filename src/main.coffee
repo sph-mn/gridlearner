@@ -164,8 +164,8 @@ class grid_mode_synonym_class extends grid_mode
       @grid.add_cell_states cell
       @grid.dom_main.appendChild cell
 
-class grid_mode_which_class extends grid_mode
-  name: "which"
+class grid_mode_multiple_choice_class extends grid_mode
+  name: "multiple_choice"
   options: choices: 5
   option_fields: [
     ["choices", "integer"]
@@ -330,7 +330,7 @@ class grid_class
       single: new grid_mode_single_class @
       pair: new grid_mode_pair_class @
       synonym: new grid_mode_synonym_class @
-      which: new grid_mode_which_class @
+      multiple_choice: new grid_mode_multiple_choice_class @
     }
     @set_mode @modes.single
     @add_events()
@@ -486,13 +486,13 @@ class mode_select_class
   constructor: (modes) ->
     @modes = Object.keys modes
     for name, i in @modes
-      dom.modes.appendChild new Option name, i
+      dom.modes.appendChild new Option name.replace(/_/g, " "), i
     dom.modes.addEventListener "change", (event) =>
       @hide_selected_option_fields()
       @selection = parseInt event.target.value
       @hooks.change && @hooks.change()
       @show_selected_option_fields()
-    dom.options_button.addEventListener "click", (event) -> dom.options.classList.toggle "hidden"
+    dom.options_button.addEventListener "click", (event) -> dom.menu_content.classList.toggle "show_options"
 
 class fasttap_detector_class
   tap_count: 0
