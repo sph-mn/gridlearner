@@ -3,16 +3,47 @@
 fs = require "fs"
 uglify_js = require "uglify-js"
 coffee = require "coffeescript"
+csv_parse = require "csv-parse/sync"
+node_path = require "path"
 read_text_file = (a) => fs.readFileSync a, "utf8"
-replace_placeholders = (text, mapping) -> text.replace /{{(.*?)}}/g, (_, k) -> mapping[k] or ""
+replace_placeholders = (text, mapping) -> text.replace /__(.*?)__/g, (_, k) -> mapping[k] or ""
+read_csv_file = (path, delimiter) ->
+  csv_parse.parse read_text_file(path), {delimiter: delimiter || " ", relax_column_count: true}
+remove_extension = (filename) -> node_path.basename filename, node_path.extname filename
 
-papaparse = read_text_file "src/foreign/papaparse.js"
-crel = read_text_file "src/foreign/crel.js"
-main = coffee.compile(read_text_file("src/main.coffee"), bare: true)
-#main = "// gridlearner, https://github.com/sph-mn/gridlearner, license: gpl\n" + uglify_js.minify(main).code
-font = read_text_file "src/NotoSansSC-Light.ttf.base64"
-html = read_text_file "src/main.html"
+compile = (suffix, data, compress) ->
+  papaparse = read_text_file "src/foreign/papaparse.js"
+  crel = read_text_file "src/foreign/crel.js"
+  main = coffee.compile read_text_file("src/main.coffee"), bare: true
+  main = uglify_js.minify(main).code if compress
+  font = read_text_file "src/NotoSansSC-Light.ttf.base64"
+  html = read_text_file "src/main.html"
+  main = replace_placeholders main, {data: JSON.stringify(data)} if data
+  script = [papaparse, crel, main].join "\n"
+  html = replace_placeholders html, {script, font}
+  suffix = if suffix then "-#{suffix}" else ""
+  fs.writeFileSync "compiled/gridlearner#{suffix}.html", html
 
-script = [papaparse, crel, main].join "\n"
-html = replace_placeholders html, {script, font}
-fs.writeFileSync "compiled/gridlearner.html", html
+compile_cn = (compress) ->
+  data_path = "../hanyu/data/gridlearner"
+  file_names = [
+    "character-reading-01.dsv"
+    "character-reading-02.dsv"
+    "character-reading-03.dsv"
+    "character-reading-04.dsv"
+    "word-reading-01.dsv"
+    "word-reading-02.dsv"
+    "word-reading-03.dsv"
+    "word-reading-04.dsv"
+  ]
+  data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
+  for name in file_names
+    id = data.files.next_id
+    data.app.configs[id] = {mode: "multiple_choice", "font_size": 20, "cell_states": {}}
+    data.files.files[id] = {name: remove_extension(name)}
+    data["file_data_#{id}"] = read_csv_file "#{data_path}/#{name}"
+    data.files.next_id = id + 1
+  compile "cn", data, compress
+
+compile_cn false
+compile false

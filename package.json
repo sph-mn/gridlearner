@@ -4,6 +4,7 @@
   "license": "cc-by-sa",
   "devDependencies": {
     "coffeescript": "*",
-    "uglify-js": "*"
+    "uglify-js": "*",
+    "csv": "*"
   }
 }

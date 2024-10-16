@@ -5,6 +5,8 @@ random_element = (a) -> a[Math.random() * a.length // 1]
 random_insert = (a, b) -> a.splice Math.random() * a.length // 1, 0, b
 locale_sort = (a) -> a.slice().sort (a, b) -> a.localeCompare b
 locale_sort_index = (a, i) -> a.slice().sort (a, b) -> a[i].localeCompare b[i]
+remove_extension = (filename) -> filename.substring 0, filename.lastIndexOf(".")
+object_integer_keys = (a) -> Object.keys(a).map (a) -> parseInt a
 
 interleave = (a, b) ->
   c = []
@@ -24,6 +26,19 @@ randomize = (a) ->
     i2 = (Math.random() * (i + 1)) // 1
     [a[i], a[i2]] = [a[i2], a[i]]
   a
+
+debounce = (func, wait, immediate = false) ->
+  timeout = null
+  ->
+    context = @
+    args = arguments
+    later = ->
+      timeout = null
+      func.apply context, args unless immediate
+    call_now = immediate and not timeout
+    clearTimeout timeout
+    timeout = setTimeout later, wait
+    func.apply context, args if call_now
 
 class grid_mode
   constructor: (grid) -> @grid = grid
@@ -219,7 +234,7 @@ class grid_class
   data: []
   font_size: 10
   class_set: {}
-  cell_state_classes: ["hidden", "selected", "completed", "last"]
+  cell_state_classes: ["hidden", "selected", "completed", "last", "invisible"]
   cell_state_attributes: ["data-mistakes"]
   pointerdown_selection: null
   reset: ->
@@ -350,7 +365,7 @@ class file_select_class
       delimiter: " "
       complete: (data) =>
         data.errors.forEach (error) -> console.error error
-        @files[@next_id] = name: file.name
+        @files[@next_id] = name: remove_extension(file.name)
         @file_data[@next_id] = data.data
         @selection = @next_id
         @hooks.add and @hooks.add()
@@ -368,14 +383,14 @@ class file_select_class
     localStorage.removeItem "file_data_#{id}"
     delete @files[id]
     delete @file_data[id]
-    ids = Object.keys @files
+    ids = object_integer_keys @files
     @selection = if ids.length then ids[0] else null
     @save()
     @hooks.delete && @hooks.delete id
     @update_options()
   reset: ->
     localStorage.removeItem "files"
-    ids = Object.keys @files
+    ids = object_integer_keys @files
     @files = {}
     @file_data = {}
     @selection = null
@@ -404,8 +419,7 @@ class file_select_class
       dom.files.value = @selection if @selection?
       dom.file.click()
     dom.files.appendChild a
-    for id in Object.keys @files
-      id = parseInt id
+    for id in object_integer_keys @files
       b = new Option @files[id].name, id
       b.selected = true if id == @selection
       dom.files.appendChild b
@@ -494,31 +508,32 @@ class mode_select_class
       @show_selected_option_fields()
     dom.options_button.addEventListener "click", (event) -> dom.menu_content.classList.toggle "show_options"
 
-class fasttap_detector_class
-  tap_count: 0
-  last_tap_time: 0
-  constructor: (n, timeout_duration) ->
-    @n = n
-    @timeout_duration = if timeout_duration? then timeout_duration else 300
-  detect: ->
-    current_time = Date.now()
-    if current_time - @last_tap_time < @timeout_duration then @tap_count += 1
-    else @tap_count = 1
-    @last_tap_time = current_time
-    if @tap_count >= @n
-      @tap_count = 0
-      true
-    else false
+class longtap_detector_class
+  touch_start_time: 0
+  constructor: (threshold_duration) ->
+    @threshold_duration = if threshold_duration? then threshold_duration else 500
+  detect: (event_type) ->
+    if event_type == "start"
+      @touch_start_time = Date.now()
+      false
+    else if event_type == "end"
+      touch_end_time = Date.now()
+      duration = touch_end_time - @touch_start_time
+      if duration >= @threshold_duration
+        true
+      else
+        false
+    else
+      false
 
 class app_class
-  file_select: new file_select_class
-  grid: new grid_class
   configs: {}
-  fasttap_detector: new fasttap_detector_class 5
   add_events: ->
     dom.save.addEventListener "click", (event) => @save()
+    reset_debounced = debounce @grid.reset, 250
+    dom.reset.addEventListener "pointerdown", (event) => @longtap_detector.detect "start"
     dom.reset.addEventListener "pointerup", (event) =>
-      if @fasttap_detector.detect() then @reset()
+      if @longtap_detector.detect "end" then confirm("reset all?") && @reset()
       else @grid.reset()
     dom.font_increase.addEventListener "click", (event) => @grid.modify_font_size 2
     dom.font_decrease.addEventListener "click", (event) => @grid.modify_font_size -2
@@ -538,7 +553,15 @@ class app_class
       @grid.set_config config
       @grid.data = @file_select.get_file_data()
       @grid.update()
-  constructor: ->
+  load_preset: (data) ->
+    return unless data
+    return if localStorage.hasOwnProperty "app"
+    localStorageSetJsonItem a, b for a, b of data
+  constructor: (data) ->
+    @load_preset data if data
+    @file_select = new file_select_class
+    @grid = new grid_class
+    @longtap_detector = new longtap_detector_class 2000
     @mode_select = new mode_select_class @grid.modes
     @mode_select.hooks.change = =>
       return unless @file_select.selection?
@@ -574,4 +597,4 @@ class app_class
     @load()
     @mode_select.update_options @grid.modes
 
-app = new app_class()
+new app_class(__data__)

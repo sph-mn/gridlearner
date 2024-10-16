@@ -11,13 +11,13 @@
      body{background-color:#444;color:#aaa;margin:0;height:100%}
      input, label{white-space:nowrap}
      button,a,select,label,input{padding:0;margin:0;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:50px;width:100%}
-     label > input{margin-left:4px;vertical-align:middle;width:auto}
+     label > input{margin-left:10px;vertical-align:middle;width:auto}
      input[type=number]{width:3ch}
      ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;column-gap:8px}
      li{list-style-type:none;flex-grow:1;min-width:40px;overflow:hidden}
      button:hover,select:hover,label:hover,input:hover,button:active{color:#eee}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
-     #grid > *{display:flex;gap:8px;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
+     #grid > *{display:flex;column-gap:16px;row-gap:8px;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:4px;flex-wrap:wrap}
      #grid > * > div,#grid > * > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
      #grid > * > div.selected,#grid > * > div:active,#grid > * > span > div:active{border-color:#aaa}
@@ -26,16 +26,17 @@
      #grid[data-mode=single] > main > div.selected > :nth-child(1){display:none}
      #grid[data-mode=single] > main > div.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=single] > main > div.selected{border:0}
-     #grid[data-mode=which] > * > * > :first-child:active{border-color:transparent}
-     #grid[data-mode=which] > main > .completed > [id]{opacity:0.5}
-     #grid[data-mode=which] > main > .completed > :not([id],:first-child){display:none}
-     #grid[data-mode=which] > main{column-gap:1.1em}
-     #grid[data-mode=which] > * > span > :first-child{background-color:#000000aa}
+     #grid[data-mode=multiple_choice] > *{display:column-gap:32px;row-gap:16px}
+     #grid[data-mode=multiple_choice] > * > * > :first-child:active{border-color:transparent}
+     #grid[data-mode=multiple_choice] > main > .completed > [id]{opacity:0.5}
+     #grid[data-mode=multiple_choice] > main > .completed > :not([id],:first-child){display:none}
+     #grid[data-mode=multiple_choice] > main{column-gap:1.1em}
+     #grid[data-mode=multiple_choice] > * > span > :first-child{background-color:#000000aa}
      #grid > main> span[data-mistakes="1"] > :first-child{background-color:#222}
      #grid > main > span[data-mistakes="2"] > :first-child{background-color:#333}
      #grid > main > span[data-mistakes="3"] > :first-child{background-color:#555}
      #grid > main > span[data-mistakes="4"] > :first-child{background-color:#666}
-     #modes{max-width:4rem;text-align:right}
+     #modes{max-width:13ch;text-align:right}
      #mode_options > :not(.show){display:none}
      #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
      #options{border:0;width:100%}
@@ -57,6 +58,7 @@
        li{border:1px solid #444;border-top:0;border-bottom:0}
        li li{border:0}
        button,a,select,label,input{height:40px}
+       #grid[data-mode=multiple_choice] > *{row-gap:16px;column-gap:8px}
      }
     </style>
   </head>
@@ -83,12 +85,12 @@
     <style>
      @font-face {
        font-family: "Noto Sans SC";
-       src: url("data:font/ttf;base64,{{font}}") format("truetype");
+       src: url("data:font/ttf;base64,__font__") format("truetype");
        font-weight: normal;font-style: normal;
      }
     </style>
     <script>
-     {{script}}
+     __script__
     </script>
   </body>
 </html>
