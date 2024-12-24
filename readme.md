@@ -7,10 +7,10 @@ single-file web application for displaying pairs from space-separated dsv file c
 the grids function as interactive, spatial memory-matching learning games, loosely akin to the game "concentration" or flashcards.
 this application is useful for memorizing new information and reinforcing recall and association skills.
 
-hosted [here](https://sph.mn/other/utilities/gridlearner.html).
+hosted with example data [here](https://sph.mn/other/chinese/gridlearner-cn.html).
 
 four game modes are available:
-* multiple choice: match each question to the right answer mixed with incorrect answers
+* choice: match each question to the right answer mixed with incorrect answers
 * pair: match questions with their corresponding answers
 * synonym: match questions which have the same answer
 * single: click to reveal one answer at a time

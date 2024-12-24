@@ -179,8 +179,8 @@ class grid_mode_synonym_class extends grid_mode
       @grid.add_cell_states cell
       @grid.dom_main.appendChild cell
 
-class grid_mode_multiple_choice_class extends grid_mode
-  name: "multiple_choice"
+class grid_mode_choice_class extends grid_mode
+  name: "choice"
   options: choices: 5
   option_fields: [
     ["choices", "integer"]
@@ -262,7 +262,7 @@ class grid_class
     dom.grid.setAttribute "data-mode", a.name
     @cell_states = {}
   set_config: (a) ->
-    @set_mode @modes[a.mode] if a.mode
+    @set_mode @modes[a.mode] if a.mode && @modes[a.mode]
     @mode.options = a.mode_options if a.mode_options
     @cell_states = a.cell_states if a.cell_states
     if a.font_size
@@ -345,21 +345,59 @@ class grid_class
       single: new grid_mode_single_class @
       pair: new grid_mode_pair_class @
       synonym: new grid_mode_synonym_class @
-      multiple_choice: new grid_mode_multiple_choice_class @
+      choice: new grid_mode_choice_class @
     }
     @set_mode @modes.single
     @add_events()
     @update_font_size()
+
+class dropdown_class
+  hooks:
+    click: null
+    change: null
+  constructor: (container, label) ->
+    @container = container
+    @container.classList.add "dropdown"
+    @button = crel "button", label
+    @options_container = crel "div", {"class": "options"}
+    @button.addEventListener "click", =>
+      @container.classList.toggle "open"
+      @hooks.click && @hooks.click()
+    document.addEventListener "click", (event) =>
+      return unless @container.classList.contains "open"
+      return if @container.contains event.target
+      @container.classList.remove "open"
+    @container.appendChild @button
+    @container.appendChild @options_container
+  set_selection: (value) ->
+    @selection && @options[@selection]?.classList.remove "active"
+    @selection = value
+    @options[value].classList.add "active"
+  set_options: (options) ->
+    @options_container.innerHTML = ""
+    @options = {}
+    for a in options
+      b = crel "div", a[0]
+      @options[a[1]] = b
+      o = @
+      b.addEventListener "click", do (a) ->
+        ->
+          o.container.classList.remove "open"
+          o.set_selection a[1]
+          o.hooks.change and o.hooks.change a[1]
+      @options_container.appendChild b
 
 class file_select_class
   hooks:
     add: null
     change: null
     delete: null
+    reset: null
   selection: null
   next_id: 1
   files: {}
   file_data: {}
+  dropdown: new dropdown_class dom.files_container, "files"
   add: (file) ->
     Papa.parse file,
       delimiter: " "
@@ -378,16 +416,17 @@ class file_select_class
     id = @selection
     a = @files[id]
     unless confirm "delete file #{a.name}?"
-      dom.files.value = id
+      @dropdown.select id
       return
-    localStorage.removeItem "file_data_#{id}"
     delete @files[id]
     delete @file_data[id]
     ids = object_integer_keys @files
     @selection = if ids.length then ids[0] else null
+    console.log "new selection", @selection
     @save()
-    @hooks.delete && @hooks.delete id
     @update_options()
+    localStorage.removeItem "file_data_#{id}"
+    @hooks.delete && @hooks.delete id
   reset: ->
     localStorage.removeItem "files"
     ids = object_integer_keys @files
@@ -397,7 +436,7 @@ class file_select_class
     @update_options()
     for id in ids
       localStorage.removeItem "file_data_#{id}"
-      @hooks.delete id if @hooks.delete
+    @hooks.reset && @hooks.reset
   save: ->
     localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
   load: ->
@@ -413,43 +452,33 @@ class file_select_class
     return unless a
     @file_data[id] = a
   update_options: ->
-    dom.files.innerHTML = ""
-    a = new Option "add", ""
-    a.addEventListener "click", (event) =>
-      dom.files.value = @selection if @selection?
-      dom.file.click()
-    dom.files.appendChild a
-    for id in object_integer_keys @files
-      b = new Option @files[id].name, id
-      b.selected = true if id == @selection
-      dom.files.appendChild b
-    if @selection?
-      a = new Option "delete", ""
-      a.addEventListener "click", (event) => @delete @selection
-      dom.files.appendChild a
+    options = [["add", -1]]
+    options = options.concat ([@files[id].name, id] for id in object_integer_keys @files)
+    options.push ["delete current", -2]
+    @dropdown.set_options options
+    @dropdown.set_selection @selection
   add_events: ->
     dom.file.addEventListener "change", (event) =>
       return unless event.target.files.length
       @add event.target.files[0]
-    dom.files.addEventListener "click", (event) =>
-      unless @selection?
-        dom.files.value = @selection if @selection?
-        dom.file.click()
-        event.stopPropagation()
-        event.preventDefault()
-    dom.files.addEventListener "change", (event) =>
-      return unless event.target.value
-      @selection = parseInt event.target.value
-      @load_file_data @selection
-      @hooks.change and @hooks.change()
-      @save()
+    @dropdown.hooks.click = => dom.file.click() unless @selection?
+    @dropdown.hooks.change = (a) =>
+      if -2 == a then @delete()
+      else if -1 == a then dom.file.click()
+      else
+        @selection = a
+        @load_file_data a
+        @hooks.change and @hooks.change a
+        @save()
   constructor: ->
     @load()
     @load_file_data(@selection) if @selection?
     @update_options()
     @add_events()
   get_file: -> @files[@selection]
-  get_file_data: -> @file_data[@selection]
+  get_file_data: ->
+    @load_file_data[@selection]
+    @file_data[@selection]
 
 class mode_select_class
   hooks:
@@ -519,12 +548,9 @@ class longtap_detector_class
     else if event_type == "end"
       touch_end_time = Date.now()
       duration = touch_end_time - @touch_start_time
-      if duration >= @threshold_duration
-        true
-      else
-        false
-    else
-      false
+      if duration >= @threshold_duration then true
+      else false
+    else false
 
 class app_class
   configs: {}
@@ -549,12 +575,12 @@ class app_class
     @configs = a.configs
     if @file_select.selection?
       config = a.configs[@file_select.selection]
-      @mode_select.set_mode config.mode
+      return unless config
+      @mode_select.set_mode @grid.modes[config.mode] || @grid.modes.single
       @grid.set_config config
       @grid.data = @file_select.get_file_data()
       @grid.update()
   load_preset: (data) ->
-    return unless data
     return if localStorage.hasOwnProperty "app"
     localStorageSetJsonItem a, b for a, b of data
   constructor: (data) ->
@@ -593,6 +619,7 @@ class app_class
       else @grid.data = []
       @save()
       @grid.update()
+    @file_select.hooks.reset = () => window.reload()
     @add_events()
     @load()
     @mode_select.update_options @grid.modes

@@ -13,12 +13,20 @@
      button,a,select,label,input{padding:0;margin:0;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:50px;width:100%}
      label > input{margin-left:10px;vertical-align:middle;width:auto}
      input[type=number]{width:3ch}
-     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center;column-gap:8px}
-     li{list-style-type:none;flex-grow:1;min-width:40px;overflow:hidden}
+     ul{margin:0;padding:0;display:flex;flex-wrap:wrap;text-align:center}
+     li{list-style-type:none;flex-grow:1;min-width:32px;overflow:hidden}
      button:hover,select:hover,label:hover,input:hover,button:active{color:#eee}
+     #files_button{max-width:6ch;cursor:pointer}
+     #files{opacity:0;position:absolute;z-index:1}
+     .dropdown > .options{display:none;position:absolute;background-color:#000;text-align:left}
+     .dropdown > .options > div{cursor:pointer;padding:8px}
+     .dropdown > .options > div:hover{background-color:#222}
+     .dropdown > .options > .active{font-weight:bold;background-color:#333}
+     .dropdown.open > div{display:block}
+     #menu_content > *{padding:0 4px}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
-     #grid > *{display:flex;column-gap:16px;row-gap:8px;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-     #grid > * > span{display:flex;gap:4px;flex-wrap:wrap}
+     #grid > *{display:flex;column-gap:0.5rem;row-gap:0.25rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
+     #grid > * > span{display:flex;gap:0.125rem;flex-wrap:wrap}
      #grid > * > div,#grid > * > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
      #grid > * > div.selected,#grid > * > div:active,#grid > * > span > div:active{border-color:#aaa}
      #grid > * > div.completed{opacity:0.5}
@@ -26,12 +34,12 @@
      #grid[data-mode=single] > main > div.selected > :nth-child(1){display:none}
      #grid[data-mode=single] > main > div.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=single] > main > div.selected{border:0}
-     #grid[data-mode=multiple_choice] > *{display:column-gap:32px;row-gap:16px}
-     #grid[data-mode=multiple_choice] > * > * > :first-child:active{border-color:transparent}
-     #grid[data-mode=multiple_choice] > main > .completed > [id]{opacity:0.5}
-     #grid[data-mode=multiple_choice] > main > .completed > :not([id],:first-child){display:none}
-     #grid[data-mode=multiple_choice] > main{column-gap:1.1em}
-     #grid[data-mode=multiple_choice] > * > span > :first-child{background-color:#000000aa}
+     #grid[data-mode=choice] > *{column-gap:2rem}
+     #grid[data-mode=choice] > * > * > :first-child:active{border-color:transparent}
+     #grid[data-mode=choice] > main > .completed > [id]{opacity:0.5}
+     #grid[data-mode=choice] > main > .completed > :not([id],:first-child){display:none}
+     #grid[data-mode=choice] > main{column-gap:0.75rem}
+     #grid[data-mode=choice] > * > span > :first-child{background-color:#000000aa}
      #grid > main> span[data-mistakes="1"] > :first-child{background-color:#222}
      #grid > main > span[data-mistakes="2"] > :first-child{background-color:#333}
      #grid > main > span[data-mistakes="3"] > :first-child{background-color:#555}
@@ -40,7 +48,7 @@
      #mode_options > :not(.show){display:none}
      #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
      #options{border:0;width:100%}
-     #menu_content.show_options #options{display:block;border:1px dotted #aaa;border-left-width:0;border-right-width:0}
+     #menu_content.show_options #options{display:block}
      #menu_content.show_options #options_button{color:#eee}
      .hidden{display:none}
      .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
@@ -55,10 +63,10 @@
        animation-iteration-count: 1;
      }
      @media (max-width: 700px) {
-       li{border:1px solid #444;border-top:0;border-bottom:0}
+       li{border:1px solid #444}
        li li{border:0}
+       html{font-size:16px}
        button,a,select,label,input{height:40px}
-       #grid[data-mode=multiple_choice] > *{row-gap:16px;column-gap:8px}
      }
     </style>
   </head>
@@ -66,18 +74,18 @@
     <input id="file" type="file" class="hidden"/>
     <div id="menu">
       <ul id="menu_content">
-        <li><select id="files"></select></li>
-        <li id="options_button_container"><button id="options_button" title="options">⚙</button></li>
+        <li id="files_container"></li>
+        <li id="options_button_container"><button id="options_button" title="options">☰</button></li>
         <li id="options" class="hidden">
           <label><span>mode:</span> <select id="modes"></select></label>
           <div id="mode_options"></div>
           <ul>
             <li><button id="font_decrease" title="decrease font size">font-</button></li>
             <li><button id="font_increase" title="increase font size">font+</button></li>
+            <li><button id="save" title="save">save</button></li>
+            <li><button id="reset" title="reset">reset</button></li>
           </ul>
         </li>
-        <li><button id="save" title="save">↓</button></li>
-        <li><button id="reset" title="reset">↺</button></li>
       </ul>
     </div>
     <div id="grid"><main></main><footer></footer></div>
