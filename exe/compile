@@ -26,20 +26,13 @@ compile = (suffix, data, compress) ->
 
 compile_cn = (compress) ->
   data_path = "../hanyu/data/gridlearner"
-  file_names = [
-    "character-reading-01.dsv"
-    "character-reading-02.dsv"
-    "character-reading-03.dsv"
-    "character-reading-04.dsv"
-    "word-reading-01.dsv"
-    "word-reading-02.dsv"
-    "word-reading-03.dsv"
-    "word-reading-04.dsv"
-  ]
+  file_names = fs.readdirSync data_path
   data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
   for name in file_names
     id = data.files.next_id
-    data.app.configs[id] = {mode: "choice", "font_size": 10, "cell_states": {}}
+    config = {mode: "choice", "font_size": 10, "cell_states": {}}
+    #config.options = {reverse: true} if name.startsWith "word-reading"
+    data.app.configs[id] = config
     data.files.files[id] = {name: remove_extension(name)}
     data["file_data_#{id}"] = read_csv_file "#{data_path}/#{name}"
     data.files.next_id = id + 1

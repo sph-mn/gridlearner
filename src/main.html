@@ -8,7 +8,7 @@
     <style>
      *,*::before,*::after{box-sizing:border-box}
      html{font-size:24px;font-family:"Noto Sans SC",monospace,sans-serif;height:100%}
-     body{background-color:#444;color:#aaa;margin:0;height:100%}
+     body{background-color:#444;color:#aaa;margin:0}
      input, label{white-space:nowrap}
      button,a,select,label,input{padding:0;margin:0;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:50px;width:100%}
      label > input{margin-left:10px;vertical-align:middle;width:auto}
@@ -18,13 +18,14 @@
      button:hover,select:hover,label:hover,input:hover,button:active{color:#eee}
      #files_button{max-width:6ch;cursor:pointer}
      #files{opacity:0;position:absolute;z-index:1}
-     .dropdown > .options{display:none;position:absolute;background-color:#000;text-align:left}
+     .dropdown > .options{display:none;position:absolute;background-color:#000;text-align:left;overflow:scroll;height:80vh}
      .dropdown > .options > div{cursor:pointer;padding:8px}
      .dropdown > .options > div:hover{background-color:#222}
      .dropdown > .options > .active{font-weight:bold;background-color:#333}
-     .dropdown.open > div{display:block}
+     .dropdown.open > div{display:block;border:1px solid #888;border-top:0}
+     .dropdown.open > button{color:#fff}
      #menu_content > *{padding:0 4px}
-     #menu{width:100%;background-color:#000;border-bottom:1px solid #888}
+     #menu{width:100%;background-color:#000;border-bottom:1px solid #888;position:sticky;z-index:2;top:0}
      #grid > *{display:flex;column-gap:0.5rem;row-gap:0.25rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:0.125rem;flex-wrap:wrap}
      #grid > * > div,#grid > * > span > div{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
@@ -71,8 +72,8 @@
     </style>
   </head>
   <body>
-    <input id="file" type="file" class="hidden"/>
     <div id="menu">
+      <input id="file" type="file" class="hidden"/>
       <ul id="menu_content">
         <li id="files_container"></li>
         <li id="options_button_container"><button id="options_button" title="options">☰</button></li>

@@ -22,3 +22,7 @@ to make the application accessible over a network, serve the html file using a w
 
 # license
 gpl3
+
+# possible enhancements
+* export function, to better persist configuration
+* creating and editing decks directly in the user interface

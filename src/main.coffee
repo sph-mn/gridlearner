@@ -172,12 +172,14 @@ class grid_mode_synonym_class extends grid_mode
       data = data.concat group
       if group.length & 1
         @odd_remaining[answer] = new Set(a[1] for a in group)
-    for a in randomize data
-      [a, i] = a
-      [question, answer] = @grid.get_data_sides a
-      cell = crel "div", {id: "q#{i}"}, crel("div", question)
-      @grid.add_cell_states cell
-      @grid.dom_main.appendChild cell
+    unless data.length then @grid.dom_main.innerHTML = "no synonyms found"
+    else
+      for a in randomize data
+        [a, i] = a
+        [question, answer] = @grid.get_data_sides a
+        cell = crel "div", {id: "q#{i}"}, crel("div", question)
+        @grid.add_cell_states cell
+        @grid.dom_main.appendChild cell
 
 class grid_mode_choice_class extends grid_mode
   name: "choice"
@@ -192,13 +194,15 @@ class grid_mode_choice_class extends grid_mode
   random_answers: (data, a, i, n) ->
     result = []
     answers_set = new Set()
-    while result.length < n
+    attempts = 0
+    while result.length < n and attempts < (n * 3)
+      attempts += 1
       index = Math.floor Math.random() * data.length
       answer = data[index]
-      unless answer[1] == a[1] or answers_set.has answer[1]
+      unless answer[1].length != a[1].length or answer[1] == a[1] or answers_set.has answer[1]
         result.push [index, answer]
         answers_set.add answer[1]
-    insert_index = Math.floor Math.random() * (n + 1)
+    insert_index = Math.floor Math.random() * (result.length + 1)
     result.splice insert_index, 0, [i, a]
     result
   pointerup: (cell) ->
@@ -215,8 +219,9 @@ class grid_mode_choice_class extends grid_mode
   pointerdown: (cell) ->
   update: ->
     @grid.dom_clear()
-    for a, i in @grid.data
+    for a, i in randomize @grid.data
       answers = @random_answers @grid.data, a, i, @options.choices - 1
+      continue unless answers.length
       answers = for b in answers
         answer = @grid.get_data_sides(b[1], @options.reverse)[1]
         answer = crel "div", crel("div", answer)
@@ -231,6 +236,7 @@ class grid_mode_choice_class extends grid_mode
       @grid.dom_main.appendChild group
 
 class grid_class
+  # this represents the state and UI of the card area.
   data: []
   font_size: 10
   class_set: {}
@@ -352,6 +358,7 @@ class grid_class
     @update_font_size()
 
 class dropdown_class
+  # a custom dropdown that works like a button in a classic menubar.
   hooks:
     click: null
     change: null
@@ -387,7 +394,15 @@ class dropdown_class
           o.hooks.change and o.hooks.change a[1]
       @options_container.appendChild b
 
+class file_editor_class
+  # unfinished class for a possible edit mode feature
+  edit: (data, name, save) ->
+    # show edit area
+    # user presses save&close, call save handler
+    save data, name
+
 class file_select_class
+  # select, load, and persist files. this has its own storage separate from the main app.
   hooks:
     add: null
     change: null
@@ -398,6 +413,20 @@ class file_select_class
   files: {}
   file_data: {}
   dropdown: new dropdown_class dom.files_container, "files"
+  update: (id, data, meta) ->
+    if data
+      @file_data[id] = data if data
+      @save_file_data id
+    if meta
+      @files[id] = meta
+      @save()
+  edit: ->
+    id = @selection
+    @editor.edit @file_data[id], @files[id], (data, meta) =>
+      @update id, data, meta
+  create: ->
+    @editor.create @file_data[id], @files[id], (data, meta) =>
+      @update id, data, meta
   add: (file) ->
     Papa.parse file,
       delimiter: " "
@@ -422,7 +451,6 @@ class file_select_class
     delete @file_data[id]
     ids = object_integer_keys @files
     @selection = if ids.length then ids[0] else null
-    console.log "new selection", @selection
     @save()
     @update_options()
     localStorage.removeItem "file_data_#{id}"
@@ -436,7 +464,7 @@ class file_select_class
     @update_options()
     for id in ids
       localStorage.removeItem "file_data_#{id}"
-    @hooks.reset && @hooks.reset
+    @hooks.reset && @hooks.reset()
   save: ->
     localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
   load: ->
@@ -453,22 +481,27 @@ class file_select_class
     @file_data[id] = a
   update_options: ->
     options = [["add", -1]]
+    #options = [["edit", -2]]
+    #options = [["create", -3]]
     options = options.concat ([@files[id].name, id] for id in object_integer_keys @files)
-    options.push ["delete current", -2]
+    options.push ["delete current", -4]
     @dropdown.set_options options
-    @dropdown.set_selection @selection
+    @dropdown.set_selection @selection if @selection?
   add_events: ->
     dom.file.addEventListener "change", (event) =>
       return unless event.target.files.length
       @add event.target.files[0]
     @dropdown.hooks.click = => dom.file.click() unless @selection?
     @dropdown.hooks.change = (a) =>
-      if -2 == a then @delete()
-      else if -1 == a then dom.file.click()
+      if -1 == a then dom.file.click()
+      else if -2 == a then @edit()
+      else if -3 == a then @create()
+      else if -4 == a then @delete()
       else
         @selection = a
         @load_file_data a
         @hooks.change and @hooks.change a
+        return
         @save()
   constructor: ->
     @load()
@@ -481,6 +514,7 @@ class file_select_class
     @file_data[@selection]
 
 class mode_select_class
+  # display a drowdown for selecting the grid mode as well as a form for the mode-specific options.
   hooks:
     change: null
     set_grid_option: null
@@ -506,19 +540,19 @@ class mode_select_class
       crel "li", crel("label", name, a)
   set_mode: (a) ->
     @hide_selected_option_fields()
-    @selection = @modes.indexOf a
+    @selection = @mode_names.indexOf a
     dom.modes.value = @selection
     @show_selected_option_fields()
-  get_mode: -> @modes[@selection]
+  get_mode: -> @mode_names[@selection]
   hide_selected_option_fields: -> @mode_option_fields[@selection]?.classList.remove "show"
   show_selected_option_fields: ->
     selected_option_fields = @mode_option_fields[@selection]
     if selected_option_fields then selected_option_fields.classList.add "show"
     else dom.options.classList.add "hidden"
-  update_options: (grid_modes) ->
+  update_options: ->
     dom.mode_options.innerHTML = ""
-    for name, i in @modes
-      mode = grid_modes[name]
+    for name, i in @mode_names
+      mode = @modes[name]
       option_fields = @make_option_fields mode
       if option_fields
         div = crel "ul", option_fields
@@ -527,8 +561,9 @@ class mode_select_class
       else @mode_option_fields[i] = null
     @show_selected_option_fields()
   constructor: (modes) ->
-    @modes = Object.keys modes
-    for name, i in @modes
+    @modes = modes
+    @mode_names = Object.keys modes
+    for name, i in @mode_names
       dom.modes.appendChild new Option name.replace(/_/g, " "), i
     dom.modes.addEventListener "change", (event) =>
       @hide_selected_option_fields()
@@ -576,7 +611,7 @@ class app_class
     if @file_select.selection?
       config = a.configs[@file_select.selection]
       return unless config
-      @mode_select.set_mode @grid.modes[config.mode] || @grid.modes.single
+      @mode_select.set_mode config.mode
       @grid.set_config config
       @grid.data = @file_select.get_file_data()
       @grid.update()
@@ -609,6 +644,7 @@ class app_class
       @grid.data = @file_select.get_file_data()
       @grid.set_config @configs[@file_select.selection]
       @grid.update()
+      return
       @mode_select.set_mode @grid.mode.name
     @file_select.hooks.delete = (old_selection) =>
       delete @configs[old_selection]
@@ -619,9 +655,9 @@ class app_class
       else @grid.data = []
       @save()
       @grid.update()
-    @file_select.hooks.reset = () => window.reload()
+    @file_select.hooks.reset = () => location.reload()
     @add_events()
     @load()
-    @mode_select.update_options @grid.modes
+    @mode_select.update_options()
 
 new app_class(__data__)
