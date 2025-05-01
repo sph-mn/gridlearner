@@ -31,7 +31,8 @@ compile_cn = (compress) ->
   for name in file_names
     id = data.files.next_id
     config = {mode: "choice", "font_size": 10, "cell_states": {}}
-    #config.options = {reverse: true} if name.startsWith "word-reading"
+    if name.startsWith "characters-by-component"
+      config.mode = "group"
     data.app.configs[id] = config
     data.files.files[id] = {name: remove_extension(name)}
     data["file_data_#{id}"] = read_csv_file "#{data_path}/#{name}"

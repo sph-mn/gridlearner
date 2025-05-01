@@ -43,8 +43,8 @@ debounce = (func, wait, immediate = false) ->
 class grid_mode
   constructor: (grid) -> @grid = grid
 
-class grid_mode_single_class extends grid_mode
-  name: "single"
+class grid_mode_flip_class extends grid_mode
+  name: "flip"
   pointerdown: (cell) -> cell.classList.toggle "selected"
   pointerup: (cell) ->
   update: ->
@@ -52,7 +52,7 @@ class grid_mode_single_class extends grid_mode
     for a, index in @grid.data
       question = crel "div", a[0]
       answer = crel "div", a.slice(1).join(" ")
-      cell = crel "div", {id: "q#{index}"}, question, answer
+      cell = crel "div", {class: "cell", id: "q#{index}"}, question, answer
       @grid.add_cell_states cell
       @grid.dom_main.appendChild cell
 
@@ -100,7 +100,7 @@ class grid_mode_pair_class extends grid_mode
     data = interleave locale_sort_index(questions, 0), locale_sort_index(answers, 0)
     children = []
     for a in data
-      cell = crel "div", {id: a[1]}, crel("div", a[0])
+      cell = crel "div", {class: "cell", id: a[1]}, crel("div", a[0])
       @grid.add_cell_states cell
       @grid.dom_main.appendChild cell
 
@@ -177,7 +177,7 @@ class grid_mode_synonym_class extends grid_mode
       for a in randomize data
         [a, i] = a
         [question, answer] = @grid.get_data_sides a
-        cell = crel "div", {id: "q#{i}"}, crel("div", question)
+        cell = crel "div", {class: "cell", id: "q#{i}"}, crel("div", question)
         @grid.add_cell_states cell
         @grid.dom_main.appendChild cell
 
@@ -224,19 +224,79 @@ class grid_mode_choice_class extends grid_mode
       continue unless answers.length
       answers = for b in answers
         answer = @grid.get_data_sides(b[1], @options.reverse)[1]
-        answer = crel "div", crel("div", answer)
+        answer = crel "div", {class: "cell"}, crel("div", answer)
         if i == b[0]
           answer.id = "a#{i}"
           @grid.add_cell_states answer
         answer
       question = @grid.get_data_sides(a, @options.reverse)[0]
-      question = crel "div", crel("div", question)
+      question = crel "div", {class: "cell"}, crel("div", question)
       group = crel "span", {"id": "q#{i}"}, question, answers
       @grid.add_cell_states group
       @grid.dom_main.appendChild group
 
+class grid_mode_group_class extends grid_mode
+  name: "group"
+  pointerdown: (cell) ->
+  pointerup: (cell) -> cell.classList.toggle "selected"
+  prepare_maps = (data) ->
+    children_map = {}
+    pinyin_map   = {}
+    parents      = new Set()
+    children     = new Set()
+    for [p, c, py] in data when c?
+      pinyin_map[c] = py if py?
+      if p?
+        children_map[p] ?= []
+        children_map[p].push c
+        pinyin_map[p] ?= ""
+        parents.add p
+        children.add c
+      else
+        parents.add c
+    roots = Array.from(parents).filter (x) -> not children.has x
+    roots = Array.from(parents) if roots.length is 0
+    size_map = {}
+    get_size = (ch) ->
+      return size_map[ch] if size_map[ch]?
+      size_map[ch] =
+        if children_map?[ch]
+          1 + children_map[ch].reduce ((s, cc) -> s + get_size cc), 0
+        else 1
+    get_size r for r in roots
+    {children_map, pinyin_map, roots, size_map}
+  render_node = (grid, wrapper, maps, ch, d = 0, parent = "") ->
+    {children_map, pinyin_map, size_map} = maps
+    q = crel "div", ch
+    a = crel "div", pinyin_map[ch] or ""
+    cls = "cell indent-#{d}"
+    cls += " group-start" if children_map?[ch]
+    attrs =
+      class: cls
+      "data-char": ch
+    attrs["data-parent"] = parent if parent
+    cell = crel "div", attrs, q, a
+    grid.add_cell_states cell
+    wrapper.appendChild cell
+    last_elem = cell
+    if children_map?[ch]
+      sorted = children_map[ch].slice().sort (x, y) -> maps.size_map[y] - maps.size_map[x]
+      for cch in sorted
+        last_elem = render_node grid, wrapper, maps, cch, d + 1, ch
+      last_elem.classList.add "group-end"
+    last_elem
+  update: ->
+    @grid.dom_clear()
+    maps = prepare_maps @grid.data
+    for root in maps.roots
+      w = crel "div",
+        class: "group"
+        "data-root": root
+      @grid.dom_main.appendChild w
+      render_node @grid, w, maps, root
+
 class grid_class
-  # this represents the state and UI of the card area.
+  # this represents the state and UI of the cell area.
   data: []
   font_size: 10
   class_set: {}
@@ -321,8 +381,7 @@ class grid_class
     if is_reverse then [c, b] else [b, c]
   get_cell_from_event_target: (a) ->
     while a and a.parentNode
-      tag = a.parentNode.tagName
-      return a if ("MAIN" == tag || "FOOTER" == tag || "SPAN" == tag)
+      return a if a.classList.contains "cell"
       a = a.parentNode
     false
   add_events: ->
@@ -348,12 +407,13 @@ class grid_class
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a
     @modes = {
-      single: new grid_mode_single_class @
+      flip: new grid_mode_flip_class @
+      group: new grid_mode_group_class @
       pair: new grid_mode_pair_class @
       synonym: new grid_mode_synonym_class @
       choice: new grid_mode_choice_class @
     }
-    @set_mode @modes.single
+    @set_mode @modes.flip
     @add_events()
     @update_font_size()
 
