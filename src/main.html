@@ -61,9 +61,10 @@
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid[data-mode=group] > * .cell.completed:not(.selected){opacity:0.5;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
-     .group{border:1px solid grey}
+     .group{border:1px solid #888}
      #grid[data-mode=group] > * .cell.group-start{background-color:#000000aa;}
-     #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:8px}
+     #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:16px}
+     #grid > header{text-align:center;display:block;font-size:0.75rem}
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}

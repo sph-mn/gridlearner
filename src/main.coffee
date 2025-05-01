@@ -237,29 +237,58 @@ class grid_mode_choice_class extends grid_mode
 
 class grid_mode_group_class extends grid_mode
   name: "group"
+  options: exhaustive: false
+  option_fields: [
+    ["exhaustive", "boolean"]
+  ]
+  set_option: (key, value) ->
+    @options[key] = value
+    @update()
   pointerdown: (cell) ->
   pointerup_long: (cell) ->
     cell.classList.toggle "completed"
     @update_stats()
   pointerup: (cell) ->
-    @grid.class_set.seen cell
+    return if cell.classList.contains "empty"
     views =+ (cell.getAttribute "data-views" or "0") + 1
-    cell.setAttribute "data-views",views
+    cell.setAttribute "data-views", views
     cell.setAttribute "data-last-tapped", Date.now()
     cell.classList.toggle "selected"
-  prepare_maps = (data) ->
-    children_map = {}
-    pinyin_map = {}
-    parents = new Set()
+  prepare_maps: (data, canonical = true) ->
+    children_map      = {}
+    pinyin_map        = {}
+    parent_candidates = {}
+    direct_counts     = {}
     for [p, c, py] in data when c?
+      p = null unless p? and p.length
       pinyin_map[c] = py if py?
-      if p? and p.length
-        children_map[p] ?= []
-        children_map[p].push c
-        pinyin_map[p] ?= ""
-        parents.add p
+      pinyin_map[p] ?= "" if p?
+      if canonical
+        parent_candidates[c] ?= new Set()
+        parent_candidates[c].add p if p?
       else
-        parents.add c
+        if p?
+          children_map[p] ?= new Set()
+          children_map[p].add c
+    if canonical
+      for c, cands_set of parent_candidates
+        cands = Array.from cands_set
+        continue unless cands.length
+        chosen = cands.reduce (best, cand) ->
+          if not best? then cand else if (direct_counts[cand] or 0) < (direct_counts[best] or 0) then cand else best
+        children_map[chosen] ?= new Set()
+        unless children_map[chosen].has c
+          children_map[chosen].add c
+          direct_counts[chosen] = (direct_counts[chosen] or 0) + 1
+    for p, set of children_map
+      children_map[p] = Array.from set
+    size_map = {}
+    get_size = (ch) ->
+      return size_map[ch] if size_map[ch]?
+      size_map[ch] = 1 + ((children_map[ch] or []).reduce ((s, cc) -> s + get_size cc), 0)
+    for p in Object.keys children_map
+      get_size p
+    parents     = new Set Object.keys children_map
     descendants = new Set()
     gather = (ch) ->
       for cc in children_map[ch] or []
@@ -268,23 +297,15 @@ class grid_mode_group_class extends grid_mode
           gather cc
     for p in Object.keys children_map
       gather p
-    roots = Array.from(parents).filter (x) -> x and not descendants.has x
-    size_map = {}
-    get_size = (ch) ->
-      return size_map[ch] if size_map[ch]?
-      size_map[ch] =
-        if children_map[ch]?
-          1 + children_map[ch].reduce ((s, cc) -> s + get_size cc), 0
-        else 1
-    for r in roots
-      get_size r
+    roots = Array.from(new Set(Object.keys pinyin_map)).filter (x) -> x and not descendants.has x
     {children_map, pinyin_map, roots, size_map}
-  render_node = (grid, wrapper, maps, ch, d = 0, parent = "") ->
+  render_node: (grid, wrapper, maps, ch, parent = "") ->
     {children_map, pinyin_map, size_map} = maps
     q = crel "div", ch
     a = crel "div", pinyin_map[ch] or ""
     cls = "cell"
     cls += " group-start" if children_map?[ch]
+    cls += " empty" unless pinyin_map[ch]
     attrs =
       class: cls
       "data-char": ch
@@ -294,23 +315,29 @@ class grid_mode_group_class extends grid_mode
     wrapper.appendChild cell
     last_elem = cell
     if children_map?[ch]
-      sorted = children_map[ch].slice().sort (x, y) -> maps.size_map[y] - maps.size_map[x]
-      for cch in sorted
-        last_elem = render_node grid, wrapper, maps, cch, d + 1, ch
+      leaves = children_map[ch].filter (cc) -> not children_map?[cc]
+      groups = children_map[ch].filter (cc) -> children_map?[cc]
+      groups.sort (x, y) -> size_map[y] - size_map[x]
+      for cch in leaves.concat groups
+        last_elem = @render_node grid, wrapper, maps, cch, ch
       last_elem.classList.add "group-end"
     last_elem
   update_stats: ->
-    completed = @grid.dom_main.querySelectorAll(".completed").length
-    @grid.dom_header.innerHTML = completed
+    group_count = @grid.dom_main.querySelectorAll(".group").length
+    cell_count = @grid.dom_main.querySelectorAll(".cell").length
+    cell_completed_count = @grid.dom_main.querySelectorAll(".cell.completed").length
+    completed_groups = Array.from(@grid.dom_main.querySelectorAll(".group")).filter (g) ->
+      g.querySelectorAll(".cell").length > 0 and g.querySelectorAll(".cell:not(.completed)").length is 0
+    @grid.dom_header.innerHTML = "cards #{cell_completed_count}/#{cell_count}, groups #{completed_groups.length}/#{group_count}"
   update: ->
     @grid.dom_clear()
-    maps = prepare_maps @grid.data
+    maps = @prepare_maps @grid.data, !@options.exhaustive
     for root in maps.roots
       w = crel "div",
         class: "group"
         "data-root": root
       @grid.dom_main.appendChild w
-      render_node @grid, w, maps, root
+      @render_node @grid, w, maps, root
     @update_stats()
 
 class grid_class
