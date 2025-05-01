@@ -238,38 +238,52 @@ class grid_mode_choice_class extends grid_mode
 class grid_mode_group_class extends grid_mode
   name: "group"
   pointerdown: (cell) ->
-  pointerup: (cell) -> cell.classList.toggle "selected"
+  pointerup_long: (cell) ->
+    cell.classList.toggle "completed"
+    @update_stats()
+  pointerup: (cell) ->
+    @grid.class_set.seen cell
+    views =+ (cell.getAttribute "data-views" or "0") + 1
+    cell.setAttribute "data-views",views
+    cell.setAttribute "data-last-tapped", Date.now()
+    cell.classList.toggle "selected"
   prepare_maps = (data) ->
     children_map = {}
-    pinyin_map   = {}
-    parents      = new Set()
-    children     = new Set()
+    pinyin_map = {}
+    parents = new Set()
     for [p, c, py] in data when c?
       pinyin_map[c] = py if py?
-      if p?
+      if p? and p.length
         children_map[p] ?= []
         children_map[p].push c
         pinyin_map[p] ?= ""
         parents.add p
-        children.add c
       else
         parents.add c
-    roots = Array.from(parents).filter (x) -> not children.has x
-    roots = Array.from(parents) if roots.length is 0
+    descendants = new Set()
+    gather = (ch) ->
+      for cc in children_map[ch] or []
+        unless descendants.has cc
+          descendants.add cc
+          gather cc
+    for p in Object.keys children_map
+      gather p
+    roots = Array.from(parents).filter (x) -> x and not descendants.has x
     size_map = {}
     get_size = (ch) ->
       return size_map[ch] if size_map[ch]?
       size_map[ch] =
-        if children_map?[ch]
+        if children_map[ch]?
           1 + children_map[ch].reduce ((s, cc) -> s + get_size cc), 0
         else 1
-    get_size r for r in roots
+    for r in roots
+      get_size r
     {children_map, pinyin_map, roots, size_map}
   render_node = (grid, wrapper, maps, ch, d = 0, parent = "") ->
     {children_map, pinyin_map, size_map} = maps
     q = crel "div", ch
     a = crel "div", pinyin_map[ch] or ""
-    cls = "cell indent-#{d}"
+    cls = "cell"
     cls += " group-start" if children_map?[ch]
     attrs =
       class: cls
@@ -285,6 +299,9 @@ class grid_mode_group_class extends grid_mode
         last_elem = render_node grid, wrapper, maps, cch, d + 1, ch
       last_elem.classList.add "group-end"
     last_elem
+  update_stats: ->
+    completed = @grid.dom_main.querySelectorAll(".completed").length
+    @grid.dom_header.innerHTML = completed
   update: ->
     @grid.dom_clear()
     maps = prepare_maps @grid.data
@@ -294,20 +311,22 @@ class grid_mode_group_class extends grid_mode
         "data-root": root
       @grid.dom_main.appendChild w
       render_node @grid, w, maps, root
+    @update_stats()
 
 class grid_class
   # this represents the state and UI of the cell area.
   data: []
   font_size: 10
   class_set: {}
-  cell_state_classes: ["hidden", "selected", "completed", "last", "invisible"]
-  cell_state_attributes: ["data-mistakes"]
+  cell_state_classes: ["hidden", "selected", "completed", "last", "invisible", "seen"]
+  cell_state_attributes: ["data-mistakes", "data-views", "data-last-tapped"]
   pointerdown_selection: null
   reset: ->
     @cell_states = {}
     @mode.update()
-  dom_main: dom.grid.children[0]
-  dom_footer: dom.grid.children[1]
+  dom_header: dom.grid.children[0]
+  dom_main: dom.grid.children[1]
+  dom_footer: dom.grid.children[2]
   dom_clear: (a) ->
     @dom_main.innerHTML = ""
     @dom_footer.innerHTML = ""
@@ -390,19 +409,28 @@ class grid_class
       return unless cell
       @pointerdown_selection = cell
       @mode.pointerdown cell if event.pointerType == "mouse"
+      @longtap_detector.detect "start"
     pointerup = (event) =>
       return unless @pointerdown_selection
       cell = @get_cell_from_event_target event.target
       return unless cell
-      if event.pointerType == "mouse" then @mode.pointerup cell
-      else if event.pointerType == "touch"
-        if @pointerdown_selection == cell
-          @mode.pointerdown cell
-          @mode.pointerup cell
+      if @longtap_detector.detect "end"
+        if event.pointerType == "mouse" then @mode.pointerup_long cell
+        else if event.pointerType == "touch"
+          if @pointerdown_selection == cell
+            @mode.pointerdown_long cell
+            @mode.pointerup_long cell
+      else
+        if event.pointerType == "mouse" then @mode.pointerup cell
+        else if event.pointerType == "touch"
+          if @pointerdown_selection == cell
+            @mode.pointerdown cell
+            @mode.pointerup cell
       @pointerdown_selection = null
     dom.grid.addEventListener "pointerdown", pointerdown
     document.body.addEventListener "pointerup", pointerup
   constructor: ->
+    @longtap_detector = new longtap_detector_class 1000
     @cell_state_classes.forEach (a) =>
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a

@@ -29,7 +29,8 @@
      #grid > *,#grid > * > .group{display:flex;column-gap:0.5rem;row-gap:0.25rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:0.125rem;flex-wrap:wrap}
      #grid > * .cell,#grid > * > span > .cell{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
-     #grid > * .cell.selected,#grid > * .cell:active,#grid > * > span > .cell:active{border-color:#aaa}
+     #grid > * .cell.selected{border-color:#aaa}
+     /*,#grid > * .cell:active,#grid > * > span > .cell:active{border-color:#aaa}*/
      #grid > * .cell.completed{opacity:0.5}
      #grid[data-mode=flip] > main > .cell > :nth-child(2){display:none}
      #grid[data-mode=flip] > main > .cell.selected > :nth-child(1){display:none}
@@ -54,17 +55,15 @@
      .hidden{display:none}
      .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
      #menu_content > :first-child, #menu_content > :last-child{flex-grow:0}
-
      #grid[data-mode=group] > main .cell > :nth-child(2){display:none}
      #grid[data-mode=group] > main .cell.selected > :nth-child(1){display:none}
      #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-
+     #grid[data-mode=group] > * .cell.completed:not(.selected){opacity:0.5;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
      .group{border:1px solid grey}
      #grid[data-mode=group] > * .cell.group-start{background-color:#000000aa;}
      #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:8px}
-
      @keyframes pulsate {
        0% {background-color: initial}
        50% {background-color: #888}
@@ -100,7 +99,7 @@
         </li>
       </ul>
     </div>
-    <div id="grid"><main></main><footer></footer></div>
+    <div id="grid"><header></header><main></main><footer></footer></div>
     <div id="hint" class="invisible"></div>
     <style>
      @font-face {
