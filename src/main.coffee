@@ -40,6 +40,41 @@ debounce = (func, wait, immediate = false) ->
     timeout = setTimeout later, wait
     func.apply context, args if call_now
 
+class longtap_detector_class
+  touch_start_time: 0
+  constructor: (threshold_duration) ->
+    @threshold_duration = if threshold_duration? then threshold_duration else 500
+  detect: (event_type) ->
+    if event_type == "start"
+      @touch_start_time = Date.now()
+      false
+    else if event_type == "end"
+      touch_end_time = Date.now()
+      duration = touch_end_time - @touch_start_time
+      if duration >= @threshold_duration then true
+      else false
+    else false
+
+class emitter_class
+  constructor: -> @listeners = {}
+  on:  (evt, fn) -> (@listeners[evt] ?= []).push fn
+  off: (evt, fn) -> @listeners[evt] = (@listeners[evt] or []).filter (x) -> x != fn
+  emit: (evt, args...) -> (fn args... for fn in @listeners[evt] or [])
+
+class store_class extends emitter_class
+  state:
+    files: {}
+    file_data: {}
+    configs: {}
+    selection: null
+  commit: (op) ->
+    @state = op @state
+    @emit "change", @state
+  persist: -> localStorageSetJsonItem "app_state", @state
+  load: ->
+    a = localStorageGetJsonItem "app_state"
+    @state = a if a?
+
 class grid_mode
   constructor: (grid) -> @grid = grid
 
@@ -231,7 +266,7 @@ class grid_mode_choice_class extends grid_mode
         answer
       question = @grid.get_data_sides(a, @options.reverse)[0]
       question = crel "div", {class: "cell"}, crel("div", question)
-      group = crel "span", {"id": "q#{i}"}, question, answers
+      group = crel "span", {"id": "q#{i}", class: "group"}, question, answers
       @grid.add_cell_states group
       @grid.dom_main.appendChild group
 
@@ -244,16 +279,40 @@ class grid_mode_group_class extends grid_mode
   set_option: (key, value) ->
     @options[key] = value
     @update()
+  base_interval_ms: 30 * 24 * 60 * 60 * 1000
+  max_interval_ms: 8 * 365 * 24 * 60 * 60 * 1000
   pointerdown: (cell) ->
   pointerup_long: (cell) ->
-    cell.classList.toggle "completed"
-    @update_stats()
+    return if cell.classList.contains "empty"
+    if cell.classList.contains "completed" then @cell_reset cell
+    else @cell_affirm cell
   pointerup: (cell) ->
     return if cell.classList.contains "empty"
-    views =+ (cell.getAttribute "data-views" or "0") + 1
-    cell.setAttribute "data-views", views
-    cell.setAttribute "data-last-tapped", Date.now()
-    cell.classList.toggle "selected"
+    is_selected = cell.classList.contains "selected"
+    @cell_affirm cell if is_selected && cell.classList.contains "due"
+    cell.classList[if is_selected then "remove" else "add"] "selected"
+  cell_affirm: (cell) ->
+    now = Date.now()
+    interval = parseInt(cell.getAttribute("data-interval")) or @base_interval_ms
+    interval = Math.min interval * 2, @max_interval_ms
+    cell.setAttribute "data-interval", interval
+    cell.setAttribute "data-last-affirmed", now
+    cell.classList.add "completed"
+    cell.classList.remove "due"
+    @update_stats()
+  cell_reset: (cell) ->
+    cell.removeAttribute "data-interval"
+    cell.removeAttribute "data-last-affirmed"
+    cell.classList.remove "completed"
+    cell.classList.remove "due"
+    @update_stats()
+  refresh_due: ->
+    now = Date.now()
+    for cell in @grid.dom_main.querySelectorAll ".cell.completed"
+      last = + (cell.getAttribute "data-last-affirmed" or 0)
+      interval = + (cell.getAttribute "data-interval" or @base_interval_ms)
+      overdue = last and (now - last > interval)
+      cell.classList.toggle "due", overdue
   prepare_maps: (data, canonical = true) ->
     children_map      = {}
     pinyin_map        = {}
@@ -288,7 +347,7 @@ class grid_mode_group_class extends grid_mode
       size_map[ch] = 1 + ((children_map[ch] or []).reduce ((s, cc) -> s + get_size cc), 0)
     for p in Object.keys children_map
       get_size p
-    parents     = new Set Object.keys children_map
+    parents = new Set Object.keys children_map
     descendants = new Set()
     gather = (ch) ->
       for cc in children_map[ch] or []
@@ -306,9 +365,10 @@ class grid_mode_group_class extends grid_mode
     cls = "cell"
     cls += " group-start" if children_map?[ch]
     cls += " empty" unless pinyin_map[ch]
+    id = if parent then parent + ch else ch
     attrs =
       class: cls
-      "data-char": ch
+      id: id
     attrs["data-parent"] = parent if parent
     cell = crel "div", attrs, q, a
     grid.add_cell_states cell
@@ -323,12 +383,15 @@ class grid_mode_group_class extends grid_mode
       last_elem.classList.add "group-end"
     last_elem
   update_stats: ->
-    group_count = @grid.dom_main.querySelectorAll(".group").length
-    cell_count = @grid.dom_main.querySelectorAll(".cell").length
-    cell_completed_count = @grid.dom_main.querySelectorAll(".cell.completed").length
-    completed_groups = Array.from(@grid.dom_main.querySelectorAll(".group")).filter (g) ->
-      g.querySelectorAll(".cell").length > 0 and g.querySelectorAll(".cell:not(.completed)").length is 0
-    @grid.dom_header.innerHTML = "cards #{cell_completed_count}/#{cell_count}, groups #{completed_groups.length}/#{group_count}"
+    groups = Array.from  @grid.dom_main.querySelectorAll ".group"
+    cells = Array.from @grid.dom_main.querySelectorAll ".cell"
+    completed_cells = cells.filter (a) -> a.classList.contains "completed"
+    due_cells = completed_cells.filter (a) -> a.classList.contains "due"
+    completed_groups = groups.filter (g) ->
+      group_cells = Array.from g.querySelectorAll ".cell"
+      completed_group_cells = group_cells.filter (a) -> a.classList.contains "completed"
+      group_cells.length == completed_group_cells.length
+    @grid.dom_header.innerHTML = "due #{due_cells.length}, cards #{completed_cells.length}/#{cells.length}, groups #{completed_groups.length}/#{groups.length}"
   update: ->
     @grid.dom_clear()
     maps = @prepare_maps @grid.data, !@options.exhaustive
@@ -338,6 +401,7 @@ class grid_mode_group_class extends grid_mode
         "data-root": root
       @grid.dom_main.appendChild w
       @render_node @grid, w, maps, root
+    @refresh_due()
     @update_stats()
 
 class grid_class
@@ -345,8 +409,8 @@ class grid_class
   data: []
   font_size: 10
   class_set: {}
-  cell_state_classes: ["hidden", "selected", "completed", "last", "invisible", "seen"]
-  cell_state_attributes: ["data-mistakes", "data-views", "data-last-tapped"]
+  cell_state_classes: ["hidden", "selected", "completed", "last", "due"]
+  cell_state_attributes: ["data-mistakes", "data-interval", "data-last-affirmed"]
   pointerdown_selection: null
   reset: ->
     @cell_states = {}
@@ -369,10 +433,9 @@ class grid_class
       font_size: @font_size
       cell_states: @get_cell_states()
     }
-  set_mode: (a) ->
+  set_mode: (a) ->  # grid_mode ->
     @mode = a
     dom.grid.setAttribute "data-mode", a.name
-    @cell_states = {}
   set_config: (a) ->
     @set_mode @modes[a.mode] if a.mode && @modes[a.mode]
     @mode.options = a.mode_options if a.mode_options
@@ -388,26 +451,15 @@ class grid_class
   update_font_size: -> dom.grid.style.fontSize = "#{@font_size / 10}em"
   cell_data: (a) -> @data[parseInt a.id.substring(1), 10]
   cell_data_index: (a) -> parseInt a.id.substring(1), 10
-  for_each_cell: (f) ->
-    for section in dom.grid.children
-      continue unless section.children.length
-      first_group_or_cell = section.children[0]
-      switch first_group_or_cell.tagName
-        when "SPAN"
-          for group in section.children
-            f group
-            f cell for cell in group.children
-        when "DIV" then f cell for cell in section.children
   add_cell_states: (cell) ->
     state = @cell_states[cell.id]
     return unless state
     if state.class
       cell.classList.add b for b in state.class
-      delete state.class
-    cell.setAttribute name, value for name, value of state
+    cell.setAttribute name, value for name, value of state when name isnt "class"
   get_cell_states: ->
     states = {}
-    @for_each_cell (cell) =>
+    for cell in @dom_main.querySelectorAll ".cell, .group"
       state = {}
       state_classes = []
       for name in @cell_state_classes
@@ -457,7 +509,7 @@ class grid_class
     dom.grid.addEventListener "pointerdown", pointerdown
     document.body.addEventListener "pointerup", pointerup
   constructor: ->
-    @longtap_detector = new longtap_detector_class 1000
+    @longtap_detector = new longtap_detector_class 600
     @cell_state_classes.forEach (a) =>
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a
@@ -472,19 +524,17 @@ class grid_class
     @add_events()
     @update_font_size()
 
-class dropdown_class
+class dropdown_class extends emitter_class
   # a custom dropdown that works like a button in a classic menubar.
-  hooks:
-    click: null
-    change: null
   constructor: (container, label) ->
+    super()
     @container = container
     @container.classList.add "dropdown"
     @button = crel "button", label
     @options_container = crel "div", {"class": "options"}
     @button.addEventListener "click", =>
       @container.classList.toggle "open"
-      @hooks.click && @hooks.click()
+      @emit "click"
     document.addEventListener "click", (event) =>
       return unless @container.classList.contains "open"
       return if @container.contains event.target
@@ -506,23 +556,11 @@ class dropdown_class
         ->
           o.container.classList.remove "open"
           o.set_selection a[1]
-          o.hooks.change and o.hooks.change a[1]
+          o.emit "change", a[1]
       @options_container.appendChild b
 
-class file_editor_class
-  # unfinished class for a possible edit mode feature
-  edit: (data, name, save) ->
-    # show edit area
-    # user presses save&close, call save handler
-    save data, name
-
-class file_select_class
+class file_select_class extends emitter_class
   # select, load, and persist files. this has its own storage separate from the main app.
-  hooks:
-    add: null
-    change: null
-    delete: null
-    reset: null
   selection: null
   next_id: 1
   files: {}
@@ -550,7 +588,7 @@ class file_select_class
         @files[@next_id] = name: remove_extension(file.name)
         @file_data[@next_id] = data.data
         @selection = @next_id
-        @hooks.add and @hooks.add()
+        @emit "add"
         @save_file_data @selection
         @next_id += 1
         @save()
@@ -569,7 +607,7 @@ class file_select_class
     @save()
     @update_options()
     localStorage.removeItem "file_data_#{id}"
-    @hooks.delete && @hooks.delete id
+    @emit "delete", id
   reset: ->
     localStorage.removeItem "files"
     ids = object_integer_keys @files
@@ -579,7 +617,7 @@ class file_select_class
     @update_options()
     for id in ids
       localStorage.removeItem "file_data_#{id}"
-    @hooks.reset && @hooks.reset()
+    @emit "reset"
   save: ->
     localStorageSetJsonItem "files", {files: @files, selection: @selection, next_id: @next_id}
   load: ->
@@ -606,8 +644,8 @@ class file_select_class
     dom.file.addEventListener "change", (event) =>
       return unless event.target.files.length
       @add event.target.files[0]
-    @dropdown.hooks.click = => dom.file.click() unless @selection?
-    @dropdown.hooks.change = (a) =>
+    @dropdown.on "click", => dom.file.click() unless @selection?
+    @dropdown.on "change", (a) =>
       if -1 == a then dom.file.click()
       else if -2 == a then @edit()
       else if -3 == a then @create()
@@ -615,24 +653,29 @@ class file_select_class
       else
         @selection = a
         @load_file_data a
-        @hooks.change and @hooks.change a
+        @emit "change", a
         return
         @save()
   constructor: ->
+    super()
     @load()
     @load_file_data(@selection) if @selection?
     @update_options()
     @add_events()
+  set_selection_by_file_name: (name) ->
+    for id, meta of @files
+      if name == meta.name
+        @selection = id
+        @load_file_data id
+        @emit "change", id
+        return
   get_file: -> @files[@selection]
   get_file_data: ->
     @load_file_data[@selection]
     @file_data[@selection]
 
-class mode_select_class
+class mode_select_class extends emitter_class
   # display a drowdown for selecting the grid mode as well as a form for the mode-specific options.
-  hooks:
-    change: null
-    set_grid_option: null
   selection: 0
   mode_option_fields: []
   make_option_fields: (mode) ->
@@ -646,17 +689,18 @@ class mode_select_class
         a.checked = "checked" if value
         a.addEventListener "change", (event) =>
           mode.set_option name, event.target.checked
-          @hooks.set_grid_option && @hooks.set_grid_option name
+          @emit "set_grid_option", name
       else if type == "integer"
         a = crel "input", {type: "number", value, placeholder: name, min: 0, step: 1}
         a.addEventListener "change", (event) =>
           mode.set_option name, parseInt(event.target.value)
-          @hooks.set_grid_option && @hooks.set_grid_option name
+          @emit "set_grid_option", name
       crel "li", crel("label", name, a)
-  set_mode: (a) ->
+  set_mode: (name, trigger_events) ->
     @hide_selected_option_fields()
-    @selection = @mode_names.indexOf a
+    @selection = @mode_names.indexOf name
     dom.modes.value = @selection
+    @emit "change" if trigger_events
     @show_selected_option_fields()
   get_mode: -> @mode_names[@selection]
   hide_selected_option_fields: -> @mode_option_fields[@selection]?.classList.remove "show"
@@ -676,6 +720,7 @@ class mode_select_class
       else @mode_option_fields[i] = null
     @show_selected_option_fields()
   constructor: (modes) ->
+    super()
     @modes = modes
     @mode_names = Object.keys modes
     for name, i in @mode_names
@@ -683,96 +728,86 @@ class mode_select_class
     dom.modes.addEventListener "change", (event) =>
       @hide_selected_option_fields()
       @selection = parseInt event.target.value
-      @hooks.change && @hooks.change()
+      @emit "change"
       @show_selected_option_fields()
     dom.options_button.addEventListener "click", (event) -> dom.menu_content.classList.toggle "show_options"
 
-class longtap_detector_class
-  touch_start_time: 0
-  constructor: (threshold_duration) ->
-    @threshold_duration = if threshold_duration? then threshold_duration else 500
-  detect: (event_type) ->
-    if event_type == "start"
-      @touch_start_time = Date.now()
-      false
-    else if event_type == "end"
-      touch_end_time = Date.now()
-      duration = touch_end_time - @touch_start_time
-      if duration >= @threshold_duration then true
-      else false
-    else false
-
 class app_class
   configs: {}
+  persist: -> localStorageSetJsonItem "app", configs: @configs
+  save_current_state: ->
+    id = @file_select.selection
+    return unless id?
+    @configs[id] ?= {}
+    @configs[id][@grid.mode.name] = @grid.get_config()
+    @configs[id]._last = @grid.mode.name
+  load_state: (mode_name) ->
+    id = @file_select.selection
+    config = @configs[id]?[mode_name]
+    if config? then @grid.set_config config else @grid.set_mode @grid.modes[mode_name]
   add_events: ->
-    dom.save.addEventListener "click", (event) => @save()
-    reset_debounced = debounce @grid.reset, 250
-    dom.reset.addEventListener "pointerdown", (event) => @longtap_detector.detect "start"
-    dom.reset.addEventListener "pointerup", (event) =>
-      if @longtap_detector.detect "end" then confirm("reset all?") && @reset()
-      else @grid.reset()
-    dom.font_increase.addEventListener "click", (event) => @grid.modify_font_size 2
-    dom.font_decrease.addEventListener "click", (event) => @grid.modify_font_size -2
+    dom.save.addEventListener "click", (e) =>
+      @save_current_state()
+      @persist()
+    dom.reset.addEventListener "pointerdown", (e) => @longtap_detector.detect "start"
+    dom.reset.addEventListener "pointerup", (e) =>
+      if @longtap_detector.detect "end" then confirm("reset all?") && @reset() else @grid.reset()
+    dom.font_increase.addEventListener "click", (e) => @grid.modify_font_size 2
+    dom.font_decrease.addEventListener "click", (e) => @grid.modify_font_size -2
   reset: ->
     localStorage.removeItem "app"
     @file_select.reset()
-  save: ->
-    @configs[@file_select.selection] = @grid.get_config() if @file_select.selection?
-    localStorageSetJsonItem "app", configs: @configs
   load: ->
     a = localStorageGetJsonItem "app"
-    return unless a
-    @configs = a.configs
-    if @file_select.selection?
-      config = a.configs[@file_select.selection]
-      return unless config
-      @mode_select.set_mode config.mode
-      @grid.set_config config
-      @grid.data = @file_select.get_file_data()
-      @grid.update()
+    @configs = a?.configs or {}
   load_preset: (data) ->
     return if localStorage.hasOwnProperty "app"
     localStorageSetJsonItem a, b for a, b of data
   constructor: (data) ->
+    @url_query = Object.fromEntries new URLSearchParams window.location.search
     @load_preset data if data
     @file_select = new file_select_class
     @grid = new grid_class
     @longtap_detector = new longtap_detector_class 2000
     @mode_select = new mode_select_class @grid.modes
-    @mode_select.hooks.change = =>
+    @mode_select.on "change", =>
       return unless @file_select.selection?
-      mode = @mode_select.get_mode()
-      @configs[@file_select.selection].mode = mode
-      @grid.set_mode @grid.modes[mode]
+      @save_current_state()
+      new_mode = @mode_select.get_mode()
+      @load_state new_mode
       @grid.update()
-      @save()
-    @mode_select.hooks.set_grid_option = => @save()
-    @file_select.hooks.add = () =>
-      config = @grid.get_config()
-      config.mode = @mode_select.get_mode()
-      @configs[@file_select.selection] = config
+      @persist()
+    @mode_select.on "set_grid_option", => @persist()
+    @file_select.on "add", =>
+      @save_current_state()
       @grid.data = @file_select.get_file_data()
-      @grid.set_config config
+      @load_state @mode_select.get_mode()
       @grid.update()
-      @save()
-    @file_select.hooks.change = =>
+      @persist()
+    @file_select.on "change", =>
+      @save_current_state()
       @grid.data = @file_select.get_file_data()
-      @grid.set_config @configs[@file_select.selection]
+      @load_state @mode_select.get_mode()
       @grid.update()
-      return
-      @mode_select.set_mode @grid.mode.name
-    @file_select.hooks.delete = (old_selection) =>
-      delete @configs[old_selection]
+    @file_select.on "delete", (old_id) =>
+      delete @configs[old_id]
       if @file_select.selection?
         @grid.data = @file_select.get_file_data()
-        @grid.set_config @configs[@file_select.selection]
-        @mode_select.set_mode @grid.mode.name
-      else @grid.data = []
-      @save()
+        @load_state @mode_select.get_mode()
+      else
+        @grid.data = []
       @grid.update()
-    @file_select.hooks.reset = () => location.reload()
+      @persist()
+    @file_select.on "reset", => location.reload()
     @add_events()
     @load()
+    if @url_query.file
+      @file_select.set_selection_by_file_name @url_query.file
+    default_mode = if @url_query.mode then @url_query.mode else if @file_select.selection? then @configs[@file_select.selection]?._last or "flip" else "flip"
+    @mode_select.set_mode default_mode, true
+    @load_state default_mode
+    @grid.data = @file_select.get_file_data() if @file_select.selection?
+    @grid.update()
     @mode_select.update_options()
 
 new app_class(__data__)

@@ -8,7 +8,7 @@
     <style>
      *,*::before,*::after{box-sizing:border-box}
      html{font-size:24px;font-family:"Noto Sans SC",monospace,sans-serif;height:100%}
-     body{background-color:#444;color:#aaa;margin:0}
+     body{background-color:#333;color:#aaa;margin:0}
      input, label{white-space:nowrap}
      button,a,select,label,input{padding:0;margin:0;font-size:1em;cursor:pointer;background-color:#000;color:#aaa;border:0;text-decoration:none;height:50px;width:100%}
      label > input{margin-left:10px;vertical-align:middle;width:auto}
@@ -26,11 +26,19 @@
      .dropdown.open > button{color:#fff}
      #menu_content > *{padding:0 4px}
      #menu{width:100%;background-color:#000;border-bottom:1px solid #888;position:sticky;z-index:2;top:0}
-     #grid > *,#grid > * > .group{display:flex;column-gap:0.5rem;row-gap:0.25rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
+     #modes{max-width:13ch;text-align:right}
+     #mode_options > :not(.show){display:none}
+     #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
+     #options{border:0;width:100%}
+     #menu_content.show_options #options{display:block}
+     #menu_content.show_options #options_button{color:#eee}
+     .hidden{display:none}
+     .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
+     #menu_content > :first-child, #menu_content > :last-child{flex-grow:0}
+     #grid > *,#grid > * > .group{display:flex;column-gap:0.25rem;row-gap:0.25rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
      #grid > * > span{display:flex;gap:0.125rem;flex-wrap:wrap}
-     #grid > * .cell,#grid > * > span > .cell{cursor:default;padding:10px;background-color:black;color:#aaa;border-radius:8px;border:2px solid transparent;cursor:pointer}
+     #grid > * .cell,#grid > * > span > .cell{cursor:default;padding:4px;background-color:black;color:#fff;border-radius:4px;border:2px solid transparent;cursor:pointer}
      #grid > * .cell.selected{border-color:#aaa}
-     /*,#grid > * .cell:active,#grid > * > span > .cell:active{border-color:#aaa}*/
      #grid > * .cell.completed{opacity:0.5}
      #grid[data-mode=flip] > main > .cell > :nth-child(2){display:none}
      #grid[data-mode=flip] > main > .cell.selected > :nth-child(1){display:none}
@@ -41,28 +49,21 @@
      #grid[data-mode=choice] > main > .completed > [id]{opacity:0.5}
      #grid[data-mode=choice] > main > .completed > :not([id],:first-child){display:none}
      #grid[data-mode=choice] > main{column-gap:0.75rem}
-     #grid[data-mode=choice] > * > span > :first-child{background-color:#000000aa}
-     #grid > main > span[data-mistakes="1"] > :first-child{background-color:#222}
-     #grid > main > span[data-mistakes="2"] > :first-child{background-color:#333}
-     #grid > main > span[data-mistakes="3"] > :first-child{background-color:#555}
-     #grid > main > span[data-mistakes="4"] > :first-child{background-color:#666}
-     #modes{max-width:13ch;text-align:right}
-     #mode_options > :not(.show){display:none}
-     #hint{position:absolute;bottom:0;text-align:center;width:100%;background-color:#000;opacity:0.5;visibility:visible}
-     #options{border:0;width:100%}
-     #menu_content.show_options #options{display:block}
-     #menu_content.show_options #options_button{color:#eee}
-     .hidden{display:none}
-     .invisible, #hint.invisible{opacity:0;visibility:hidden;transition:opacity 500ms, visibility 0s 500ms}
-     #menu_content > :first-child, #menu_content > :last-child{flex-grow:0}
+     #grid[data-mode=choice] > * > .group > :first-child{background-color:#000000aa}
+     #grid[data-mode=choice] > main > .group[data-mistakes="1"] > :first-child{background-color:#222}
+     #grid[data-mode=choice] > main > .group[data-mistakes="2"] > :first-child{background-color:#333}
+     #grid[data-mode=choice] > main > .group[data-mistakes="3"] > :first-child{background-color:#555}
+     #grid[data-mode=choice] > main > .group[data-mistakes="4"] > :first-child{background-color:#666}
+     #grid[data-mode=group] > main .cell{user-select:none}
      #grid[data-mode=group] > main .cell > :nth-child(2){display:none}
      #grid[data-mode=group] > main .cell.selected > :nth-child(1){display:none}
      #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-     #grid[data-mode=group] > * .cell.completed:not(.selected){opacity:0.5;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
-     .group{border:1px solid #888}
-     #grid[data-mode=group] > * .cell.group-start{background-color:#000000aa;}
+     #grid[data-mode=group] > * .cell.completed{opacity:0.5;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
+     #grid[data-mode=group] > * .cell.completed.due{border-top-color:orange}
+     #grid[data-mode=group] > * .group{border:1px solid #888;border-radius:2px}
+     #grid[data-mode=group] > * .cell.group-start{background-color:#222;}
      #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:16px}
      #grid > header{text-align:center;display:block;font-size:0.75rem}
      @keyframes pulsate {
