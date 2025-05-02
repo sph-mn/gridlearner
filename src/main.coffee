@@ -77,6 +77,10 @@ class store_class extends emitter_class
 
 class grid_mode
   constructor: (grid) -> @grid = grid
+  pointerdown: (cell) ->
+  pointerup: (cell) ->
+  pointerdown_long: (cell) ->
+  pointerup_long: (cell) ->
 
 class grid_mode_flip_class extends grid_mode
   name: "flip"
@@ -428,7 +432,6 @@ class grid_class
     @hint_timeout = setTimeout (=> @class_set.invisible dom.hint), 1000
   get_config: ->
     {
-      mode: @mode.name
       mode_options: @mode.options
       font_size: @font_size
       cell_states: @get_cell_states()
@@ -436,12 +439,12 @@ class grid_class
   set_mode: (a) ->  # grid_mode ->
     @mode = a
     dom.grid.setAttribute "data-mode", a.name
-  set_config: (a) ->
-    @set_mode @modes[a.mode] if a.mode && @modes[a.mode]
-    @mode.options = a.mode_options if a.mode_options
-    @cell_states = a.cell_states if a.cell_states
-    if a.font_size
-      @font_size = a.font_size
+  set_config: (cfg) ->
+    @set_mode @modes[cfg.mode or @mode.name] if @modes[cfg.mode or @mode.name]?
+    @mode.options = cfg.mode_options if cfg.mode_options?
+    @cell_states = cfg.cell_states if cfg.cell_states?
+    if cfg.font_size?
+      @font_size = cfg.font_size
       @update_font_size()
   update: -> @mode.update()
   pulsate: (a) ->
@@ -452,6 +455,7 @@ class grid_class
   cell_data: (a) -> @data[parseInt a.id.substring(1), 10]
   cell_data_index: (a) -> parseInt a.id.substring(1), 10
   add_cell_states: (cell) ->
+    return unless @cell_states
     state = @cell_states[cell.id]
     return unless state
     if state.class
@@ -487,27 +491,31 @@ class grid_class
       cell = @get_cell_from_event_target event.target
       return unless cell
       @pointerdown_selection = cell
+      @active_pointer_id = event.pointerId
       @mode.pointerdown cell if event.pointerType == "mouse"
       @longtap_detector.detect "start"
     pointerup = (event) =>
-      return unless @pointerdown_selection
+      return unless @pointerdown_selection && event.pointerId == @active_pointer_id
+      selection = @pointerdown_selection
+      @pointerdown_selection = null
       cell = @get_cell_from_event_target event.target
       return unless cell
       if @longtap_detector.detect "end"
         if event.pointerType == "mouse" then @mode.pointerup_long cell
-        else if event.pointerType == "touch"
-          if @pointerdown_selection == cell
-            @mode.pointerdown_long cell
-            @mode.pointerup_long cell
+        else if event.pointerType == "touch" && selection == cell
+          @mode.pointerdown_long cell
+          @mode.pointerup_long cell
       else
         if event.pointerType == "mouse" then @mode.pointerup cell
-        else if event.pointerType == "touch"
-          if @pointerdown_selection == cell
-            @mode.pointerdown cell
-            @mode.pointerup cell
+        else if event.pointerType == "touch" && selection == cell
+          @mode.pointerdown cell
+          @mode.pointerup cell
+    pointercancel = (event) =>
+      return unless event.pointerId == @active_pointer_id
       @pointerdown_selection = null
     dom.grid.addEventListener "pointerdown", pointerdown
     document.body.addEventListener "pointerup", pointerup
+    document.body.addEventListener "pointercancel", pointercancel
   constructor: ->
     @longtap_detector = new longtap_detector_class 600
     @cell_state_classes.forEach (a) =>
@@ -654,8 +662,6 @@ class file_select_class extends emitter_class
         @selection = a
         @load_file_data a
         @emit "change", a
-        return
-        @save()
   constructor: ->
     super()
     @load()
@@ -733,81 +739,110 @@ class mode_select_class extends emitter_class
     dom.options_button.addEventListener "click", (event) -> dom.menu_content.classList.toggle "show_options"
 
 class app_class
-  configs: {}
-  persist: -> localStorageSetJsonItem "app", configs: @configs
-  save_current_state: ->
-    id = @file_select.selection
+  store: null
+  last_selection: null
+  save_state_for: (id) ->
     return unless id?
-    @configs[id] ?= {}
-    @configs[id][@grid.mode.name] = @grid.get_config()
-    @configs[id]._last = @grid.mode.name
+    @store.commit (s) =>
+      s.configs[id] ?= {}
+      cfg = @grid.get_config()
+      mode = @grid.mode.name
+      s.configs[id][mode] = cfg
+      s.configs[id]._last = mode
+      s
   load_state: (mode_name) ->
-    id = @file_select.selection
-    config = @configs[id]?[mode_name]
-    if config? then @grid.set_config config else @grid.set_mode @grid.modes[mode_name]
-  add_events: ->
-    dom.save.addEventListener "click", (e) =>
-      @save_current_state()
-      @persist()
-    dom.reset.addEventListener "pointerdown", (e) => @longtap_detector.detect "start"
-    dom.reset.addEventListener "pointerup", (e) =>
-      if @longtap_detector.detect "end" then confirm("reset all?") && @reset() else @grid.reset()
-    dom.font_increase.addEventListener "click", (e) => @grid.modify_font_size 2
-    dom.font_decrease.addEventListener "click", (e) => @grid.modify_font_size -2
+    id  = @file_select.selection
+    cfg = @store.state.configs[id]?[mode_name]
+    @mode_select.set_mode mode_name, false
+    @grid.set_mode @grid.modes[mode_name]
+    @grid.set_config cfg if cfg?
   reset: ->
-    localStorage.removeItem "app"
+    localStorage.removeItem "app_state"
     @file_select.reset()
-  load: ->
-    a = localStorageGetJsonItem "app"
-    @configs = a?.configs or {}
-  load_preset: (data) ->
-    return if localStorage.hasOwnProperty "app"
-    localStorageSetJsonItem a, b for a, b of data
-  constructor: (data) ->
-    @url_query = Object.fromEntries new URLSearchParams window.location.search
-    @load_preset data if data
+  choose_initial_file: ->
+    if @url_query.file
+      @file_select.set_selection_by_file_name @url_query.file
+      return @file_select.selection if @file_select.selection?
+    if @store.state.selection? and @file_select.files[@store.state.selection]?
+      return @store.state.selection
+    ids = object_integer_keys @file_select.files
+    return ids[0] if ids.length
+    null
+  choose_initial_mode: (fid) ->
+    m = @url_query.mode or @store.state.configs[fid]?._last
+    if @grid.modes[m]? then m else "flip"
+  constructor: (preset) ->
+    @store = new store_class
+    @store.load()
+    unless localStorage.hasOwnProperty "app_state"
+      localStorageSetJsonItem a, b for a, b of preset if preset?
     @file_select = new file_select_class
     @grid = new grid_class
     @longtap_detector = new longtap_detector_class 2000
     @mode_select = new mode_select_class @grid.modes
+    @url_query = Object.fromEntries new URLSearchParams window.location.search
+    fid = @choose_initial_file()
+    if fid?
+      @file_select.selection = fid
+      @grid.data = @file_select.get_file_data()
+      mode = @choose_initial_mode fid
+      @mode_select.set_mode mode, false
+      @load_state mode
+      @store.commit (s) -> s.selection = fid; s
+      @last_selection = fid
+    else
+      @mode_select.set_mode "flip", false
+    @grid.update()
+    @mode_select.update_options()
+    @add_events()
+  add_events: ->
+    dom.save.addEventListener "click", =>
+      current = @file_select.selection
+      mode = @mode_select.get_mode()
+      @store.commit (s) ->
+        s.configs[current]?._last = mode
+        s
+      @save_state_for current
+      @store.persist()
+    dom.reset.addEventListener "pointerdown", =>
+      @longtap_detector.detect "start"
+    dom.reset.addEventListener "pointerup", =>
+      if @longtap_detector.detect "end" then confirm("reset all?") && @reset() else @grid.reset()
+    dom.font_increase.addEventListener "click", => @grid.modify_font_size 2
+    dom.font_decrease.addEventListener "click", => @grid.modify_font_size -2
     @mode_select.on "change", =>
       return unless @file_select.selection?
-      @save_current_state()
       new_mode = @mode_select.get_mode()
+      @store.commit (s) =>
+        s.configs[@file_select.selection]?._last = new_mode
+        s
       @load_state new_mode
       @grid.update()
-      @persist()
-    @mode_select.on "set_grid_option", => @persist()
+    @mode_select.on "set_grid_option", => @store.persist()
     @file_select.on "add", =>
-      @save_current_state()
+      @save_state_for @last_selection
+      @last_selection = @file_select.selection
       @grid.data = @file_select.get_file_data()
       @load_state @mode_select.get_mode()
       @grid.update()
-      @persist()
     @file_select.on "change", =>
-      @save_current_state()
+      @save_state_for @last_selection
+      @last_selection = @file_select.selection
+      id = @last_selection
       @grid.data = @file_select.get_file_data()
-      @load_state @mode_select.get_mode()
+      mode = @store.state.configs[id]?._last or "flip"
+      @load_state mode
       @grid.update()
     @file_select.on "delete", (old_id) =>
-      delete @configs[old_id]
+      @store.commit (s) ->
+        delete s.configs[old_id]
+        s
       if @file_select.selection?
         @grid.data = @file_select.get_file_data()
         @load_state @mode_select.get_mode()
       else
         @grid.data = []
       @grid.update()
-      @persist()
     @file_select.on "reset", => location.reload()
-    @add_events()
-    @load()
-    if @url_query.file
-      @file_select.set_selection_by_file_name @url_query.file
-    default_mode = if @url_query.mode then @url_query.mode else if @file_select.selection? then @configs[@file_select.selection]?._last or "flip" else "flip"
-    @mode_select.set_mode default_mode, true
-    @load_state default_mode
-    @grid.data = @file_select.get_file_data() if @file_select.selection?
-    @grid.update()
-    @mode_select.update_options()
 
 new app_class(__data__)

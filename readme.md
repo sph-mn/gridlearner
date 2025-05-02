@@ -37,6 +37,9 @@ to create data files, one can use a spreadsheet application and save as csv with
 a 2-column format of question and answer is the main format used by most modes.
 a 3-column format of parent, child, and answer is the format used by the group mode.
 
+# other features
+* long press (about 5 seconds) on the reset button fully resets the app data including loaded files and progress
+
 # hosting
 it is possible to download the application and use it offline or host it somewhere else.
 the entire application is contained within a single html file. you can copy the file from the compiled/ directory and open it directly in a browser to use the application.

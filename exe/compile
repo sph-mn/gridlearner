@@ -15,7 +15,7 @@ compile = (suffix, data, compress) ->
   papaparse = read_text_file "src/foreign/papaparse.js"
   crel = read_text_file "src/foreign/crel.js"
   main = coffee.compile read_text_file("src/main.coffee"), bare: true
-  main = replace_placeholders main, {data: JSON.stringify(data || [])}
+  main = replace_placeholders main, {data: JSON.stringify(data || {})}
   main = uglify_js.minify(main).code if compress
   font = read_text_file "src/NotoSansSC-Light.ttf.base64"
   html = read_text_file "src/main.html"
@@ -30,10 +30,11 @@ compile_cn = (compress) ->
   data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
   for name in file_names
     id = data.files.next_id
-    config = {mode: "choice", "font_size": 10, "cell_states": {}}
-    if name.startsWith "characters-by-component"
-      config.mode = "group"
-    data.app.configs[id] = config
+    mode = "choice"
+    mode = "group" if name.startsWith "characters-by-component"
+    config = {"font_size": 12, "cell_states": {}}
+    data.app.configs[id] = {}
+    data.app.configs[id][mode] = config
     data.files.files[id] = {name: remove_extension(name)}
     data["file_data_#{id}"] = read_csv_file "#{data_path}/#{name}"
     data.files.next_id = id + 1
