@@ -226,10 +226,14 @@ class grid_mode_synonym_class extends grid_mode
 
 class grid_mode_choice_class extends grid_mode
   name: "choice"
-  options: choices: 5
+  options:
+    choices: 5
+    reverse: false
+    tries: 3
   option_fields: [
     ["choices", "integer"]
     ["reverse", "boolean"]
+    ["tries", "integer"]
   ]
   set_option: (key, value) ->
     @options[key] = value
@@ -249,34 +253,46 @@ class grid_mode_choice_class extends grid_mode
     insert_at = Math.floor Math.random() * (result.length + 1)
     result.splice insert_at, 0, [i, a]
     result
+  update_stats: ->
+    groups = Array.from @grid.dom_main.querySelectorAll ".group"
+    completed_groups = groups.filter (a) -> a.classList.contains "completed"
+    failed_groups = groups.filter (a) -> a.classList.contains "failed"
+    mistakes = groups.reduce ((m, a) -> m + parseInt (a.getAttribute("data-mistakes") || 0)), 0
+    @grid.dom_header.innerHTML = "completed #{completed_groups.length}/#{groups.length}, failed #{failed_groups.length}, mistakes #{mistakes}"
   pointerup: (cell) ->
     return if cell.parentNode.children[0] == cell
     return if cell.parentNode.classList.contains "completed"
     if "a" == cell.id[0]
       @grid.class_set.completed cell.parentNode
       @grid.emit "update"
+      @update_stats()
     else
       @grid.pulsate cell
-      mistakes = cell.parentNode.getAttribute "data-mistakes"
-      if mistakes then mistakes = Math.min 4, parseInt(mistakes) + 1
-      else mistakes = 1
-      cell.parentNode.setAttribute "data-mistakes", mistakes
-  pointerdown: (cell) ->
+      mistakes = parseInt(cell.parentNode.getAttribute("data-mistakes") or "0") + 1
+      if mistakes >= @options.tries
+        cell.parentNode.setAttribute "data-mistakes", @options.tries
+        cell.parentNode.classList.add "failed"
+        @grid.class_set.completed cell.parentNode
+        @grid.emit "update"
+        @update_stats()
+      else
+        cell.parentNode.setAttribute "data-mistakes", mistakes
   update: ->
     @grid.dom_clear()
-    for a, i in randomize @grid.data
-      answers = @random_answers @grid.data, a, i, @options.choices - 1
+    for a in randomize @grid.data
+      idx = @grid.data.indexOf a
+      answers = @random_answers @grid.data, a, idx, @options.choices - 1
       continue unless answers.length
       answers = for b in answers
         answer = @grid.get_data_sides(b[1], @options.reverse)[1]
         answer = crel "div", {class: "cell"}, crel("div", answer)
-        if i == b[0]
-          answer.id = "a#{i}"
+        if idx == b[0]
+          answer.id = "a#{idx}"
           @grid.add_cell_states answer
         answer
       question = @grid.get_data_sides(a, @options.reverse)[0]
       question = crel "div", {class: "cell"}, crel("div", question)
-      group = crel "span", {"id": "q#{i}", class: "group"}, question, answers
+      group = crel "span", {"id": "q#{idx}", class: "group"}, question, answers
       @grid.add_cell_states group
       @grid.dom_main.appendChild group
 
@@ -517,12 +533,14 @@ class grid_class extends emitter_class
   data: []
   font_size: 10
   class_set: {}
-  cell_state_classes: ["hidden", "selected", "completed", "last", "due"]
+  cell_state_classes: ["hidden", "selected", "completed", "last", "due", "failed"]
   cell_state_attributes: ["data-mistakes", "data-interval", "data-last-affirmed"]
   pointerdown_selection: null
   reset: ->
+    @dom_header.innerHTML = ""
     @cell_states = {}
     @mode.update()
+    @emit "update"
   dom_header: dom.grid.children[0]
   dom_main: dom.grid.children[1]
   dom_footer: dom.grid.children[2]
