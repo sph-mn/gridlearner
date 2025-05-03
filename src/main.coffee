@@ -22,11 +22,11 @@ localStorageGetJsonItem = (key) ->
   if a then JSON.parse(a) else null
 
 randomize = (a) ->
-  return a unless a.length
-  for i in [a.length - 1..0]
+  b = a.slice()
+  for i in [b.length - 1..0]
     i2 = (Math.random() * (i + 1)) // 1
-    [a[i], a[i2]] = [a[i2], a[i]]
-  a
+    [b[i], b[i2]] = [b[i2], b[i]]
+  b
 
 debounce = (func, wait, immediate = false) ->
   timeout = null
