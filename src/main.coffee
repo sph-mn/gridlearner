@@ -241,13 +241,13 @@ class grid_mode_choice_class extends grid_mode
     attempts = 0
     while result.length < n and attempts < (n * 3)
       attempts += 1
-      index = Math.floor Math.random() * data.length
-      answer = data[index]
-      unless answer[1].length != a[1].length or answer[1] == a[1] or answers_set.has answer[1]
-        result.push [index, answer]
-        answers_set.add answer[1]
-    insert_index = Math.floor Math.random() * (result.length + 1)
-    result.splice insert_index, 0, [i, a]
+      index = Math.floor( Math.random() * data.length )
+      entry = data[index]
+      unless entry[1] == a[1] or answers_set.has entry[1]
+        result.push [index, entry]
+        answers_set.add entry[1]
+    insert_at = Math.floor Math.random() * (result.length + 1)
+    result.splice insert_at, 0, [i, a]
     result
   pointerup: (cell) ->
     return if cell.parentNode.children[0] == cell
@@ -438,6 +438,17 @@ class grid_mode_group_class extends grid_mode
     for p, s of children
       children[p] = Array.from s
     children
+  display_result_analysis: (roots, children) ->
+    {size_map} = @calc_sizes children
+    sizes = roots.map (r) -> size_map[r]
+    sorted = sizes.slice().sort (a, b) -> a - b
+    mid = Math.floor(sorted.length / 2)
+    median = if sorted.length % 2 then sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2
+    mean = sizes.reduce(((a, b) -> a + b), 0) / sizes.length
+    variance = sizes.reduce(((a, b) -> a + (b - mean) * (b - mean)), 0) / sizes.length
+    stdev = Math.sqrt variance
+    console.log (r + ": " + size_map[r] for r in roots).join(", ")
+    console.log "mean: #{mean.toFixed 2}, median: #{median.toFixed 2}, stdev: #{stdev.toFixed 2}"
   prepare_maps: (data, canonical = true) ->
     @min_size   = 6
     @max_size   = 60
@@ -453,8 +464,7 @@ class grid_mode_group_class extends grid_mode
     {children, parent_of} = @merge_tiny children, parent_of, size_map
     children = @normalize children
     roots = Object.keys(pinyin).filter (x) -> x and not parent_of[x]?
-    # {size_map} = @calc_sizes children
-    # console.log (r + ": " + size_map[r] for r in roots).join(", ")
+    #@display_result_analysis roots, children
     {children_map: children, pinyin_map: pinyin, roots, size_map}
   render_node: (grid, wrapper, maps, ch, parent = "") ->
     {children_map, pinyin_map, size_map} = maps
