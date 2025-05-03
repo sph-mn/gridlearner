@@ -777,13 +777,16 @@ class file_select_class extends emitter_class
   set_selection_by_file_name: (name) ->
     for id, meta of @files
       if name == meta.name
-        @selection = id
-        @load_file_data id
-        @emit "change", id
+        @set_selection id
         return
+  set_selection: (id) ->
+    @selection = id
+    @load_file_data id
+    @dropdown.set_selection id
+    @emit "change", id
   get_file: -> @files[@selection]
   get_file_data: ->
-    @load_file_data[@selection]
+    @load_file_data @selection
     @file_data[@selection]
 
 class mode_select_class extends emitter_class
@@ -857,7 +860,7 @@ class app_class
       s.configs[id]._last = mode
       s
   load_state: (mode_name) ->
-    id  = @file_select.selection
+    id = @file_select.selection
     cfg = @store.state.configs[id]?[mode_name]
     @mode_select.set_mode mode_name, false
     @grid.set_mode @grid.modes[mode_name]
@@ -899,7 +902,7 @@ class app_class
     @url_query = Object.fromEntries new URLSearchParams window.location.search
     fid = @choose_initial_file()
     if fid?
-      @file_select.selection = fid
+      @file_select.set_selection fid
       @grid.data = @file_select.get_file_data()
       mode = @choose_initial_mode fid
       @mode_select.set_mode mode, false
@@ -939,6 +942,10 @@ class app_class
     @file_select.on "change", =>
       @save_state_for @last_selection
       @last_selection = @file_select.selection
+      @store.commit (s) =>
+        s.selection = @last_selection
+        s
+      @store.persist()
       id = @last_selection
       @grid.data = @file_select.get_file_data()
       mode = @store.state.configs[id]?._last or "flip"
