@@ -7,6 +7,7 @@ locale_sort = (a) -> a.slice().sort (a, b) -> a.localeCompare b
 locale_sort_index = (a, i) -> a.slice().sort (a, b) -> a[i].localeCompare b[i]
 remove_extension = (filename) -> filename.substring 0, filename.lastIndexOf(".")
 object_integer_keys = (a) -> Object.keys(a).map (a) -> parseInt a
+split_chars = (a) -> [...a]
 
 interleave = (a, b) ->
   c = []
@@ -101,6 +102,7 @@ class grid_mode_pair_class extends grid_mode
   set_option: (key, value) ->
     @options[key] = value
     @update()
+    @grid.emit "update"
   pointerdown: (cell) ->
     if cell.classList.contains "completed"
       id = (if "q" == cell.id[0] then "a" else "q") + cell.id.substring(1)
@@ -124,6 +126,7 @@ class grid_mode_pair_class extends grid_mode
       @grid.class_set.not_selected @selection
       @grid.class_set.completed cell
       @selection = null
+      @grid.emit "update"
       return
     @grid.pulsate cell
   pointerup: ->
@@ -195,6 +198,7 @@ class grid_mode_synonym_class extends grid_mode
           @odd_remaining[a[1]] = null
           document.getElementById("q#{index}").classList.add "last"
       @selection = null
+      @grid.emit "update"
       return
     @grid.pulsate cell
   update: ->
@@ -230,6 +234,7 @@ class grid_mode_choice_class extends grid_mode
   set_option: (key, value) ->
     @options[key] = value
     @update()
+    @grid.emit "update"
   random_answers: (data, a, i, n) ->
     result = []
     answers_set = new Set()
@@ -249,6 +254,7 @@ class grid_mode_choice_class extends grid_mode
     return if cell.parentNode.classList.contains "completed"
     if "a" == cell.id[0]
       @grid.class_set.completed cell.parentNode
+      @grid.emit "update"
     else
       @grid.pulsate cell
       mistakes = cell.parentNode.getAttribute "data-mistakes"
@@ -283,6 +289,7 @@ class grid_mode_group_class extends grid_mode
   set_option: (key, value) ->
     @options[key] = value
     @update()
+    @grid.emit "update"
   base_interval_ms: 30 * 24 * 60 * 60 * 1000
   max_interval_ms: 8 * 365 * 24 * 60 * 60 * 1000
   pointerdown: (cell) ->
@@ -304,12 +311,14 @@ class grid_mode_group_class extends grid_mode
     cell.classList.add "completed"
     cell.classList.remove "due"
     @update_stats()
+    @grid.emit "update"
   cell_reset: (cell) ->
     cell.removeAttribute "data-interval"
     cell.removeAttribute "data-last-affirmed"
     cell.classList.remove "completed"
     cell.classList.remove "due"
     @update_stats()
+    @grid.emit "update"
   refresh_due: ->
     now = Date.now()
     for cell in @grid.dom_main.querySelectorAll ".cell.completed"
@@ -317,51 +326,136 @@ class grid_mode_group_class extends grid_mode
       interval = + (cell.getAttribute "data-interval" or @base_interval_ms)
       overdue = last and (now - last > interval)
       cell.classList.toggle "due", overdue
-  prepare_maps: (data, canonical = true) ->
-    children_map      = {}
-    pinyin_map        = {}
-    parent_candidates = {}
-    direct_counts     = {}
+  ingest: (data) ->
+    children  = {}
+    pinyin    = {}
+    cand  = {}
+    pot   = {}          # ← new
     for [p, c, py] in data when c?
       p = null unless p? and p.length
-      pinyin_map[c] = py if py?
-      pinyin_map[p] ?= "" if p?
-      if canonical
-        parent_candidates[c] ?= new Set()
-        parent_candidates[c].add p if p?
-      else
-        if p?
-          children_map[p] ?= new Set()
-          children_map[p].add c
-    if canonical
-      for c, cands_set of parent_candidates
-        cands = Array.from cands_set
-        continue unless cands.length
-        chosen = cands.reduce (best, cand) ->
-          if not best? then cand else if (direct_counts[cand] or 0) < (direct_counts[best] or 0) then cand else best
-        children_map[chosen] ?= new Set()
-        unless children_map[chosen].has c
-          children_map[chosen].add c
-          direct_counts[chosen] = (direct_counts[chosen] or 0) + 1
-    for p, set of children_map
-      children_map[p] = Array.from set
+      pinyin[c] ?= ""
+      pinyin[p] ?= "" if p?
+      pinyin[c] = py if py?
+      if @canonical and p?
+        cand[c] ?= []
+        cand[c].push p
+        pot[p] ?= new Set()
+        pot[p].add c           # ← record that p can parent c
+      else if p?
+        children[p] ?= new Set()
+        children[p].add c
+        pot[p] ?= new Set()
+        pot[p].add c
+    {children, pinyin, cand, pot}
+  choose_parents: (children, cand, pot) ->
+    @priorities ?= new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜"
+    allow_parent = (p) => @demote.indexOf(p) < 0 or @priorities.has p   # demoted only if prioritised
+    parent_of  = {}
+    root_sizes = {}
+    get_root   = (n) -> r = n; r = parent_of[r] while parent_of[r]?; r
+    inc_root   = (r, k = 1) -> root_sizes[r] = (root_sizes[r] or 1) + k
+    taken      = new Set()
+    parents_by_size = Object.entries(pot).sort (a, b) -> b[1].size - a[1].size
+    for [p, set] in parents_by_size
+      continue unless allow_parent p                       # skip un-allowed roots
+      kids = Array.from set
+      free = kids.filter (x) -> not taken.has x
+      need_full = @priorities.has(p) or
+                  (free.length >= @min_size and free.length <= @max_size)
+      continue unless need_full
+      children[p] ?= new Set()
+      for ch in free
+        parent_of[ch] = p
+        children[p].add ch
+        taken.add ch
+      inc_root p, free.length
+    min_cluster = 3
+    for c, cands of cand
+      continue if parent_of[c]?
+      pri = cands.filter (x) => @priorities.has x
+      ok  = cands.filter (x) => @demote.indexOf(x) < 0
+      pool = if pri.length then pri else if ok.length then ok else cands
+      best   = null
+      best_v = 1 / 0
+      for p in pool
+        load    = root_sizes[get_root p] or 0
+        penalty = if @demote.indexOf(p) >= 0 then 1e6 else 0
+        score   = load + penalty
+        if score < best_v
+          best   = p
+          best_v = score
+      continue unless best?
+      parent_of[c] = best
+      children[best] ?= new Set()
+      children[best].add c
+      inc_root get_root best
+    {children, parent_of}
+  calc_sizes: (children) ->
     size_map = {}
-    get_size = (ch) ->
-      return size_map[ch] if size_map[ch]?
-      size_map[ch] = 1 + ((children_map[ch] or []).reduce ((s, cc) -> s + get_size cc), 0)
-    for p in Object.keys children_map
-      get_size p
-    parents = new Set Object.keys children_map
-    descendants = new Set()
-    gather = (ch) ->
-      for cc in children_map[ch] or []
-        unless descendants.has cc
-          descendants.add cc
-          gather cc
-    for p in Object.keys children_map
-      gather p
-    roots = Array.from(new Set(Object.keys pinyin_map)).filter (x) -> x and not descendants.has x
-    {children_map, pinyin_map, roots, size_map}
+    fn = (n) -> size_map[n] ?= 1 + Array.from(children[n] or []).reduce ((s, ch) -> s + fn(ch)), 0
+    for n of @pinyin_map then fn n
+    {size_map, fn}
+  merge_small: (children, cand, parent_of) ->
+    get_root = (n) -> r = n; r = parent_of[r] while parent_of[r]?; r
+    loop
+      {size_map} = @calc_sizes children
+      roots = Object.keys(@pinyin_map).filter (x) -> x and not parent_of[x]?
+      target = roots.find (r) => size_map[r] < @min_size and not @priorities.has r and cand?[r]
+      break unless target?
+      alts = (cand?[target] or []).filter (p) -> get_root(p) isnt target and @demote.indexOf(p) < 0
+      alts = (cand?[target] or []).filter (p) -> get_root(p) isnt target unless alts.length
+      break unless alts.length
+      best = alts.reduce (a, b) ->
+        (size_map[get_root a] or 1) < (size_map[get_root b] or 1) and a or b
+      parent_of[target] = best
+      children[best] ?= new Set()
+      children[best].add target
+    {children, parent_of}
+  merge_tiny: (children, parent_of, size_map, limit = 2, wildcard = "﹡") ->
+    @pinyin_map[wildcard] ?= ""
+    children[wildcard] ?= new Set()
+    roots = Object.keys(@pinyin_map).filter (x) -> x and not parent_of[x]?
+    tiny  = roots.filter (r) -> size_map[r] <= limit
+    for r in tiny
+      parent_of[r] = wildcard
+      children[wildcard].add r
+    {children, parent_of}
+  fan_out: (children, parent_of, L, U) ->
+    loop
+      changed = false
+      {size_map} = @calc_sizes children
+      roots = Object.keys(@pinyin_map).filter (x)->x and not parent_of[x]?
+      for r in roots when size_map[r] > U
+        kids = Array.from(children[r] or [])
+        for c in kids when size_map[c] >= L and size_map[r] - size_map[c] >= L
+          parent_of[c] = null
+          kids = kids.filter (x)->x isnt c
+          changed = true
+        children[r] = kids
+      break unless changed
+    {children, parent_of}
+  normalize: (children) ->
+    for p, s of children
+      children[p] = Array.from s
+    children
+  prepare_maps: (data, canonical = true) ->
+    @min_size   = 6
+    @max_size   = 60
+    @canonical  = canonical
+    @demote     = split_chars "氵忄讠饣扌刂阝扌犭纟钅忄彳衤灬罒亻冫月牜礻𧾷口土人木"
+    @allow_demoted_roots = false
+    {children, pinyin, cand, pot} = @ingest data
+    @pinyin_map = pinyin
+    {children, parent_of} = @choose_parents children, cand, pot
+    {children, parent_of} = @merge_small children, cand, parent_of
+    {size_map} = @calc_sizes children
+    {children, parent_of} = @fan_out children, parent_of, @min_size, 60
+    {children, parent_of} = @merge_tiny children, parent_of, size_map
+    children = @normalize children
+    roots = Object.keys(pinyin).filter (x) -> x and not parent_of[x]?
+    # {size_map} = @calc_sizes children
+    # console.log (r + ": " + size_map[r] for r in roots).join(", ")
+    {children_map: children, pinyin_map: pinyin, roots, size_map}
   render_node: (grid, wrapper, maps, ch, parent = "") ->
     {children_map, pinyin_map, size_map} = maps
     q = crel "div", ch
@@ -408,7 +502,7 @@ class grid_mode_group_class extends grid_mode
     @refresh_due()
     @update_stats()
 
-class grid_class
+class grid_class extends emitter_class
   # this represents the state and UI of the cell area.
   data: []
   font_size: 10
@@ -477,6 +571,7 @@ class grid_class
   modify_font_size: (a) ->
     @font_size += a
     @update_font_size()
+    @emit "update"
   get_data_sides: (a, is_reverse) ->
     b = a[0]
     c = a[1]
@@ -517,7 +612,8 @@ class grid_class
     document.body.addEventListener "pointerup", pointerup
     document.body.addEventListener "pointercancel", pointercancel
   constructor: ->
-    @longtap_detector = new longtap_detector_class 600
+    super()
+    @longtap_detector = new longtap_detector_class 400
     @cell_state_classes.forEach (a) =>
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a
@@ -771,7 +867,17 @@ class app_class
   choose_initial_mode: (fid) ->
     m = @url_query.mode or @store.state.configs[fid]?._last
     if @grid.modes[m]? then m else "flip"
+  save_current: ->
+    current = @file_select.selection
+    mode = @mode_select.get_mode()
+    @store.commit (s) ->
+      s.configs[current]?._last = mode
+      s
+    @save_state_for current
+    @store.persist()
+  save: debounce (-> !@initializing && @file_select.selection? && @save_current()), 800
   constructor: (preset) ->
+    @initializing = true
     @store = new store_class
     @store.load()
     unless localStorage.hasOwnProperty "app_state"
@@ -795,15 +901,8 @@ class app_class
     @grid.update()
     @mode_select.update_options()
     @add_events()
+    @initializing = false
   add_events: ->
-    dom.save.addEventListener "click", =>
-      current = @file_select.selection
-      mode = @mode_select.get_mode()
-      @store.commit (s) ->
-        s.configs[current]?._last = mode
-        s
-      @save_state_for current
-      @store.persist()
     dom.reset.addEventListener "pointerdown", =>
       @longtap_detector.detect "start"
     dom.reset.addEventListener "pointerup", =>
@@ -818,6 +917,7 @@ class app_class
         s
       @load_state new_mode
       @grid.update()
+      @save()
     @mode_select.on "set_grid_option", => @store.persist()
     @file_select.on "add", =>
       @save_state_for @last_selection
@@ -825,6 +925,7 @@ class app_class
       @grid.data = @file_select.get_file_data()
       @load_state @mode_select.get_mode()
       @grid.update()
+      @save()
     @file_select.on "change", =>
       @save_state_for @last_selection
       @last_selection = @file_select.selection
@@ -833,6 +934,7 @@ class app_class
       mode = @store.state.configs[id]?._last or "flip"
       @load_state mode
       @grid.update()
+      @save()
     @file_select.on "delete", (old_id) =>
       @store.commit (s) ->
         delete s.configs[old_id]
@@ -843,6 +945,8 @@ class app_class
       else
         @grid.data = []
       @grid.update()
+      @save()
     @file_select.on "reset", => location.reload()
+    @grid.on "update", => @save()
 
 new app_class(__data__)

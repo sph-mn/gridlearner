@@ -61,7 +61,7 @@
      #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-     #grid[data-mode=group] > * .cell.completed{opacity:0.5;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
+     #grid[data-mode=group] > * .cell.completed{background-color:#888;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
      #grid[data-mode=group] > * .cell.completed.due{border-top-color:orange}
      #grid[data-mode=group] > * .group{border:1px solid #888;border-radius:2px}
      #grid[data-mode=group] > * .cell.group-start{background-color:#222;}
@@ -96,7 +96,6 @@
           <ul>
             <li><button id="font_decrease" title="decrease font size">font-</button></li>
             <li><button id="font_increase" title="increase font size">font+</button></li>
-            <li><button id="save" title="save">save</button></li>
             <li><button id="reset" title="reset">reset</button></li>
           </ul>
         </li>
