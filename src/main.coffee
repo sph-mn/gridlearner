@@ -64,16 +64,14 @@ class emitter_class
 
 class store_class extends emitter_class
   state:
-    files: {}
-    file_data: {}
     configs: {}
     selection: null
   commit: (op) ->
     @state = op @state
     @emit "change", @state
-  persist: -> localStorageSetJsonItem "app_state", @state
+  persist: -> localStorageSetJsonItem "app", @state
   load: ->
-    a = localStorageGetJsonItem "app_state"
+    a = localStorageGetJsonItem "app"
     @state = a if a?
 
 class grid_mode
@@ -884,7 +882,7 @@ class app_class
     @grid.set_mode @grid.modes[mode_name]
     @grid.set_config cfg if cfg?
   reset: ->
-    localStorage.removeItem "app_state"
+    localStorage.removeItem "app"
     @file_select.reset()
   choose_initial_file: ->
     if @url_query.file
@@ -909,10 +907,10 @@ class app_class
   save: debounce (-> !@initializing && @file_select.selection? && @save_current()), 800
   constructor: (preset) ->
     @initializing = true
+    unless localStorage.hasOwnProperty "app"
+      localStorageSetJsonItem a, b for a, b of preset if preset?
     @store = new store_class
     @store.load()
-    unless localStorage.hasOwnProperty "app_state"
-      localStorageSetJsonItem a, b for a, b of preset if preset?
     @file_select = new file_select_class
     @grid = new grid_class
     @longtap_detector = new longtap_detector_class 2000
