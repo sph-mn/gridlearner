@@ -227,7 +227,7 @@ class grid_mode_choice_class extends grid_mode
   options:
     choices: 5
     reverse: false
-    tries: 3
+    tries: 2
   option_fields: [
     ["choices", "integer"]
     ["reverse", "boolean"]
@@ -237,6 +237,11 @@ class grid_mode_choice_class extends grid_mode
     @options[key] = value
     @update()
     @grid.emit "update"
+  stats:
+    total: 0
+    completed: 0
+    failed: 0
+    mistakes: 0
   random_answers: (data, a, i, n) ->
     result = []
     answers_set = new Set()
@@ -257,6 +262,7 @@ class grid_mode_choice_class extends grid_mode
     failed_groups = groups.filter (a) -> a.classList.contains "failed"
     mistakes = groups.reduce ((m, a) -> m + parseInt (a.getAttribute("data-mistakes") || 0)), 0
     @grid.dom_header.innerHTML = "completed #{completed_groups.length}/#{groups.length}, failed #{failed_groups.length}, mistakes #{mistakes}"
+    @stats = {total: groups.length, completed: completed_groups.length, failed: failed_groups.length, mistakes: mistakes.length}
   pointerup: (cell) ->
     return if cell.parentNode.children[0] == cell
     return if cell.parentNode.classList.contains "completed"
@@ -275,6 +281,23 @@ class grid_mode_choice_class extends grid_mode
         @update_stats()
       else
         cell.parentNode.setAttribute "data-mistakes", mistakes
+    if @stats.total == @stats.completed + @stats.failed
+      @grid.dom_header.appendChild @next_round_button
+  next_round: ->
+    count = 0
+    for a in @grid.dom_main.querySelectorAll ".group"
+      if parseInt a.getAttribute "data-mistakes" or 0
+        a.setAttribute "data-mistakes", 0
+        a.classList.remove "completed","failed"
+        count += 1
+      else a.remove()
+    unless count then @grid.reset()
+  constructor: (grid) ->
+    super grid
+    @next_round_button = crel "button", "next round"
+    @next_round_button.addEventListener "click", =>
+      @next_round()
+      @next_round_button.remove()
   update: ->
     @grid.dom_clear()
     for a in randomize @grid.data
