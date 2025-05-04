@@ -8,6 +8,7 @@ locale_sort_index = (a, i) -> a.slice().sort (a, b) -> a[i].localeCompare b[i]
 remove_extension = (filename) -> filename.substring 0, filename.lastIndexOf(".")
 object_integer_keys = (a) -> Object.keys(a).map (a) -> parseInt a
 split_chars = (a) -> [...a]
+random_color = -> "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")
 
 interleave = (a, b) ->
   c = []
@@ -86,7 +87,6 @@ class grid_mode_flip_class extends grid_mode
   pointerdown: (cell) -> cell.classList.toggle "selected"
   pointerup: (cell) ->
   update: ->
-    @grid.dom_clear()
     for a, index in @grid.data
       question = crel "div", a[0]
       answer = crel "div", a.slice(1).join(" ")
@@ -130,7 +130,6 @@ class grid_mode_pair_class extends grid_mode
   pointerup: ->
   update: () ->
     @selection = null
-    @grid.dom_clear()
     questions = []
     answers = []
     for a, i in @grid.data
@@ -158,23 +157,25 @@ class grid_mode_synonym_class extends grid_mode
           @grid.class_set.completed @selection
           @grid.class_set.not_selected @selection
           object_array_add @completed, answer, @selection
+          g = parseInt @selection.getAttribute "data-group"
+          @selection.style.borderTopColor = @group_colors[g]
           @selection = null
+          @update_stats()
+          @grid.emit "update"
         return
       a = @grid.cell_data cell
       for b in @completed[a[1]]
         @grid.pulsate b unless b == cell
-      @grid.show_hint cell.title
+      @grid.show_hint cell.getAttribute "data-title"
       return
     unless @selection
       @selection = cell
       @grid.class_set.selected cell
       a = @grid.cell_data cell
-      cell.title = a[1]
-      @grid.show_hint cell.title
+      @grid.show_hint cell.getAttribute "data-title"
       return
     if @selection == cell
       @grid.class_set.not_selected cell
-      cell.title = ""
       @selection = null
       return
     a = @grid.cell_data @selection
@@ -184,7 +185,6 @@ class grid_mode_synonym_class extends grid_mode
       @grid.class_set.completed @selection
       @grid.class_set.not_selected @selection
       @grid.class_set.completed cell
-      cell.title = answer
       object_array_add @completed, answer, @selection
       object_array_add @completed, answer, cell
       remaining = @odd_remaining[answer]
@@ -195,32 +195,50 @@ class grid_mode_synonym_class extends grid_mode
           index = remaining.values().next().value
           @odd_remaining[a[1]] = null
           document.getElementById("q#{index}").classList.add "last"
+      g = parseInt @selection.getAttribute "data-group"
+      @selection.style.borderTopColor = @group_colors[g]
+      cell.style.borderTopColor = @group_colors[g]
       @selection = null
+      @update_stats()
       @grid.emit "update"
       return
+    @selection.setAttribute "data-mistakes", 1 + parseInt(@selection.getAttribute("data-mistakes") || 0)
     @grid.pulsate cell
+  update_stats: ->
+    cells = Array.from @grid.dom_main.querySelectorAll ".cell"
+    completed_cells = cells.filter (a) -> a.classList.contains "completed"
+    mistakes = cells.reduce ((m, a) -> m + parseInt (a.getAttribute("data-mistakes") || 0)), 0
+    @grid.dom_header.innerHTML = "completed #{completed_cells.length}/#{cells.length}, mistakes #{mistakes}"
+    @stats = {total: cells.length, completed: completed_cells.length, mistakes: mistakes}
   update: ->
     @selection = null
-    @grid.dom_clear()
     groups = {}
-    for a, i in @grid.data
-      object_array_add groups, a[1], [a, i]
+    object_array_add groups, a[1], [a, i] for a, i in @grid.data
     @completed = {}
     @odd_remaining = {}
+    @group_colors = {}
     data = []
+    group_index = 0
     for answer, group of groups
       continue if 2 > group.length
-      data = data.concat group
+      for item in group
+        item.push group_index
+        data.push item
+      @group_colors[group_index] = random_color()
       if group.length & 1
         @odd_remaining[answer] = new Set(a[1] for a in group)
+      group_index += 1
     unless data.length then @grid.dom_main.innerHTML = "no synonyms found"
     else
-      for a in randomize data
-        [a, i] = a
+      for [a, i, g] in randomize data
         [question, answer] = @grid.get_data_sides a
-        cell = crel "div", {class: "cell", id: "q#{i}"}, crel("div", question)
+        cell = crel "div", {class: "cell", id: "q#{i}", "data-group": g, "data-title": answer}, crel("div", question)
         @grid.add_cell_states cell
+        if cell.classList.contains "completed"
+          cell.style.borderTopColor = @group_colors[g]
+          object_array_add @completed, answer, cell
         @grid.dom_main.appendChild cell
+    @update_stats()
 
 class grid_mode_choice_class extends grid_mode
   name: "choice"
@@ -262,7 +280,7 @@ class grid_mode_choice_class extends grid_mode
     failed_groups = groups.filter (a) -> a.classList.contains "failed"
     mistakes = groups.reduce ((m, a) -> m + parseInt (a.getAttribute("data-mistakes") || 0)), 0
     @grid.dom_header.innerHTML = "completed #{completed_groups.length}/#{groups.length}, failed #{failed_groups.length}, mistakes #{mistakes}"
-    @stats = {total: groups.length, completed: completed_groups.length, failed: failed_groups.length, mistakes: mistakes.length}
+    @stats = {total: groups.length, completed: completed_groups.length, failed: failed_groups.length, mistakes: mistakes}
   pointerup: (cell) ->
     return if cell.parentNode.children[0] == cell
     return if cell.parentNode.classList.contains "completed"
@@ -299,7 +317,6 @@ class grid_mode_choice_class extends grid_mode
       @next_round()
       @next_round_button.remove()
   update: ->
-    @grid.dom_clear()
     for a in randomize @grid.data
       idx = @grid.data.indexOf a
       answers = @random_answers @grid.data, a, idx, @options.choices - 1
@@ -386,7 +403,7 @@ class grid_mode_group_class extends grid_mode
     {children, pinyin, cand, pot}
   choose_parents: (children, cand, pot) ->
     @priorities ?= new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜"
-    allow_parent = (p) => @demote.indexOf(p) < 0 or @priorities.has p   # demoted only if prioritised
+    allow_parent = (p) => @demote.indexOf(p) < 0 or @priorities.has p
     parent_of  = {}
     root_sizes = {}
     get_root   = (n) -> r = n; r = parent_of[r] while parent_of[r]?; r
@@ -394,7 +411,7 @@ class grid_mode_group_class extends grid_mode
     taken      = new Set()
     parents_by_size = Object.entries(pot).sort (a, b) -> b[1].size - a[1].size
     for [p, set] in parents_by_size
-      continue unless allow_parent p                       # skip un-allowed roots
+      continue unless allow_parent p
       kids = Array.from set
       free = kids.filter (x) -> not taken.has x
       need_full = @priorities.has(p) or
@@ -538,7 +555,6 @@ class grid_mode_group_class extends grid_mode
       group_cells.length == completed_group_cells.length
     @grid.dom_header.innerHTML = "due #{due_cells.length}, cards #{completed_cells.length}/#{cells.length}, groups #{completed_groups.length}/#{groups.length}"
   update: ->
-    @grid.dom_clear()
     maps = @prepare_maps @grid.data, !@options.exhaustive
     for root in maps.roots
       w = crel "div",
@@ -558,7 +574,7 @@ class grid_class extends emitter_class
   cell_state_attributes: ["data-mistakes", "data-interval", "data-last-affirmed"]
   pointerdown_selection: null
   reset: ->
-    @dom_header.innerHTML = ""
+    @dom_clear()
     @cell_states = {}
     @mode.update()
     @emit "update"
@@ -566,13 +582,14 @@ class grid_class extends emitter_class
   dom_main: dom.grid.children[1]
   dom_footer: dom.grid.children[2]
   dom_clear: (a) ->
+    @dom_header.innerHTML = ""
     @dom_main.innerHTML = ""
     @dom_footer.innerHTML = ""
   show_hint: (a) ->
     dom.hint.innerHTML = a
-    @class_set.not_invisible dom.hint
+    dom.hint.classList.remove "invisible"
     clearTimeout @hint_timeout if @hint_timeout
-    @hint_timeout = setTimeout (=> @class_set.invisible dom.hint), 1000
+    @hint_timeout = setTimeout (=> dom.hint.classList.add "invisible"), 1000
   get_config: ->
     {
       mode_options: @mode.options
@@ -589,12 +606,14 @@ class grid_class extends emitter_class
     if cfg.font_size?
       @font_size = cfg.font_size
       @update_font_size()
-  update: -> @mode.update()
+  update: ->
+    @dom_clear()
+    @mode.update()
   pulsate: (a) ->
     a.classList.remove "pulsate"
     a.classList.add "pulsate"
     a.addEventListener "animationend", (-> a.classList.remove "pulsate"), once: true
-  update_font_size: -> dom.grid.style.fontSize = "#{@font_size / 10}em"
+  update_font_size: -> dom.grid.style.fontSize = "#{2 * @font_size / 10}em"
   cell_data: (a) -> @data[parseInt a.id.substring(1), 10]
   cell_data_index: (a) -> parseInt a.id.substring(1), 10
   add_cell_states: (cell) ->
