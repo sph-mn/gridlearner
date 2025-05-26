@@ -402,7 +402,7 @@ class grid_mode_group_class extends grid_mode
         pot[p].add c
     {children, pinyin, cand, pot}
   choose_parents: (children, cand, pot) ->
-    @priorities ?= new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜"
+    @priorities ?= new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜畐"
     allow_parent = (p) => @demote.indexOf(p) < 0 or @priorities.has p
     parent_of  = {}
     root_sizes = {}
@@ -613,7 +613,7 @@ class grid_class extends emitter_class
     a.classList.remove "pulsate"
     a.classList.add "pulsate"
     a.addEventListener "animationend", (-> a.classList.remove "pulsate"), once: true
-  update_font_size: -> dom.grid.style.fontSize = "#{2 * @font_size / 10}em"
+  update_font_size: -> dom.grid.style.fontSize = "#{@font_size / 10}em"
   cell_data: (a) -> @data[parseInt a.id.substring(1), 10]
   cell_data_index: (a) -> parseInt a.id.substring(1), 10
   add_cell_states: (cell) ->
