@@ -84,15 +84,60 @@ class grid_mode
 
 class grid_mode_flip_class extends grid_mode
   name: "flip"
-  pointerdown: (cell) -> cell.classList.toggle "selected"
-  pointerup: (cell) ->
+  base_interval_ms: 2000 * 86400
+  max_interval_ms: 1000 * 365 * 86400
+  constructor: (grid) ->
+    super grid
+    @timer = null
+    @timer_cell = null
+  pointerdown: (cell) ->
+    if cell.classList.contains("completed") && cell.classList.contains("selected")
+      @cell_reset cell
+      cell.classList.remove "selected"
+      return
+    cell.classList.add "selected"
+    needs_affirm = not cell.hasAttribute("data-last-affirmed") or cell.classList.contains "due"
+    @cell_affirm cell if needs_affirm
+    id = cell.id
+    if @timer? and @timer_cell is id
+      clearTimeout @timer
+    @timer_cell = id
+    @timer = setTimeout =>
+      @grid.emit "update"
+      @timer = null
+      @timer_cell = null
+    , 4000
+  pointerdown_long: (cell) ->
+  cell_affirm: (cell) ->
+    now = Date.now()
+    interval = parseInt(cell.getAttribute("data-interval") or @base_interval_ms)
+    interval = Math.min interval * 2, @max_interval_ms
+    cell.setAttribute "data-interval", interval
+    cell.setAttribute "data-last-affirmed", now
+    cell.classList.add "completed"
+    cell.classList.remove "due"
+  cell_reset: (cell) ->
+    cell.removeAttribute "data-interval"
+    cell.removeAttribute "data-last-affirmed"
+    cell.classList.remove "completed"
+    cell.classList.remove "due"
+  refresh_due: ->
+    now = Date.now()
+    for cell in @grid.dom_main.querySelectorAll ".cell.completed"
+      last = + (cell.getAttribute "data-last-affirmed" or 0)
+      interval = + (cell.getAttribute "data-interval" or @base_interval_ms)
+      overdue = last and (now - last > interval)
+      cell.classList.toggle "due", overdue
+      if overdue
+        cell.classList.remove "selected"
   update: ->
     for a, index in @grid.data
       question = crel "div", a[0]
-      answer = crel "div", a.slice(1).join(" ")
+      answer = crel "div", a.slice(1).join " "
       cell = crel "div", {class: "cell", id: "q#{index}"}, question, answer
       @grid.add_cell_states cell
       @grid.dom_main.appendChild cell
+    @refresh_due()
 
 class grid_mode_pair_class extends grid_mode
   name: "pair"
@@ -128,7 +173,7 @@ class grid_mode_pair_class extends grid_mode
       return
     @grid.pulsate cell
   pointerup: ->
-  update: () ->
+  update: ->
     @selection = null
     questions = []
     answers = []
@@ -344,21 +389,22 @@ class grid_mode_group_class extends grid_mode
     @options[key] = value
     @update()
     @grid.emit "update"
-  base_interval_ms: 30 * 24 * 60 * 60 * 1000
-  max_interval_ms: 8 * 365 * 24 * 60 * 60 * 1000
+  base_interval_ms: 2000 * 86400
+  max_interval_ms: 1000 * 365 * 86400
   pointerdown: (cell) ->
+    return if cell.classList.contains "empty"
+    if cell.classList.contains("completed") && cell.classList.contains("selected")
+      @cell_reset cell
+      cell.classList.remove "selected"
+      return
+    cell.classList.add "selected"
+    needs_affirm = not cell.hasAttribute("data-last-affirmed") or cell.classList.contains "due"
+    @cell_affirm cell if needs_affirm
   pointerup_long: (cell) ->
-    return if cell.classList.contains "empty"
-    if cell.classList.contains "completed" then @cell_reset cell
-    else @cell_affirm cell
   pointerup: (cell) ->
-    return if cell.classList.contains "empty"
-    is_selected = cell.classList.contains "selected"
-    @cell_affirm cell if is_selected && cell.classList.contains "due"
-    cell.classList[if is_selected then "remove" else "add"] "selected"
   cell_affirm: (cell) ->
     now = Date.now()
-    interval = parseInt(cell.getAttribute("data-interval")) or @base_interval_ms
+    interval = parseInt(cell.getAttribute("data-interval") or @base_interval_ms)
     interval = Math.min interval * 2, @max_interval_ms
     cell.setAttribute "data-interval", interval
     cell.setAttribute "data-last-affirmed", now
@@ -380,6 +426,7 @@ class grid_mode_group_class extends grid_mode
       interval = + (cell.getAttribute "data-interval" or @base_interval_ms)
       overdue = last and (now - last > interval)
       cell.classList.toggle "due", overdue
+      cell.classList.remove "selected" if overdue
   ingest: (data) ->
     children  = {}
     pinyin    = {}

@@ -40,11 +40,12 @@
      #grid > * .cell{touch-action:manipulation}
      #grid > * .cell,#grid > * > span > .cell{cursor:default;padding:4px;background-color:black;color:#fff;border-radius:6px;border:2px solid transparent;cursor:pointer}
      #grid > * .cell.selected{border-color:#aaa}
-     #grid > * .cell.completed{opacity:0.5}
+     #grid > * .cell.completed{opacity:0.75}
+     #grid > * .cell > *{display:inline-block}
+     #grid[data-mode=flip] > * .cell.completed{opacity:1}
      #grid[data-mode=flip] > main > .cell > :nth-child(2){display:none}
-     #grid[data-mode=flip] > main > .cell.selected > :nth-child(1){display:none}
      #grid[data-mode=flip] > main > .cell.selected > :nth-child(2){display:inline-block}
-     #grid[data-mode=flip] > main > .cell.selected{border:0}
+     #grid[data-mode=flip] > main > .cell.selected{border:0;background-color:#333}
      #grid[data-mode=choice] > *{column-gap:2rem}
      #grid[data-mode=choice] > * > * > :first-child:active{border-color:transparent}
      #grid[data-mode=choice] > main > .completed > [id]{opacity:0.5}
@@ -57,14 +58,13 @@
      #grid[data-mode=choice] > main > .group[data-mistakes="4"] > :first-child{background-color:#666}
      #grid[data-mode=choice] > main > .group.failed > .cell:first-child{border-width:1px;border-color:red}
      #grid[data-mode=synonym] > main .cell.completed{border-top-width:4px}
+     #grid[data-mode=group] > * .cell.completed{opacity:1}
      #grid[data-mode=group] > main .cell{user-select:none}
      #grid[data-mode=group] > main .cell > :nth-child(2){display:none}
-     #grid[data-mode=group] > main .cell.selected > :nth-child(1){display:none}
      #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block}
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-     #grid[data-mode=group] > * .cell.completed{background-color:#888;borter-top-width:4px;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0;padding:8px 0}
-     #grid[data-mode=group] > * .cell.completed.due{border-top-color:orange}
+     #grid[data-mode=group] > main .cell.selected.completed{background-color:#666;border-style:solid;border-top-width:4px;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0}
      #grid[data-mode=group] > * .group{border:1px solid #888;border-radius:2px}
      #grid[data-mode=group] > * .cell.group-start{background-color:#222;}
      #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:16px}
