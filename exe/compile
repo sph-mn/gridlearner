@@ -29,10 +29,9 @@ compile_cn = (compress) ->
   file_names = fs.readdirSync data_path
   data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
   for name in file_names
+    console.log name
     id = data.files.next_id
-    mode = "choice"
-    mode = "group" if name.startsWith "characters-by-component"
-    mode = "group" if name.startsWith "characters-by-syllable"
+    mode = "group"
     config = {"font_size": 12, "cell_states": {}}
     data.app.configs[id] = {_last: mode}
     data.app.configs[id][mode] = config

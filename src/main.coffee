@@ -428,10 +428,10 @@ class grid_mode_group_class extends grid_mode
       cell.classList.toggle "due", overdue
       cell.classList.remove "selected" if overdue
   ingest: (data) ->
-    children  = {}
-    pinyin    = {}
-    cand  = {}
-    pot   = {}          # ← new
+    children = {}
+    pinyin = {}
+    cand = {}
+    pot = {}
     for [p, c, py] in data when c?
       p = null unless p? and p.length
       pinyin[c] ?= ""
@@ -441,7 +441,7 @@ class grid_mode_group_class extends grid_mode
         cand[c] ?= []
         cand[c].push p
         pot[p] ?= new Set()
-        pot[p].add c           # ← record that p can parent c
+        pot[p].add c
       else if p?
         children[p] ?= new Set()
         children[p].add c
@@ -451,18 +451,17 @@ class grid_mode_group_class extends grid_mode
   choose_parents: (children, cand, pot) ->
     @priorities ?= new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜畐"
     allow_parent = (p) => @demote.indexOf(p) < 0 or @priorities.has p
-    parent_of  = {}
+    parent_of = {}
     root_sizes = {}
-    get_root   = (n) -> r = n; r = parent_of[r] while parent_of[r]?; r
-    inc_root   = (r, k = 1) -> root_sizes[r] = (root_sizes[r] or 1) + k
-    taken      = new Set()
+    get_root = (n) -> r = n; r = parent_of[r] while parent_of[r]?; r
+    inc_root = (r, k = 1) -> root_sizes[r] = (root_sizes[r] or 1) + k
+    taken = new Set()
     parents_by_size = Object.entries(pot).sort (a, b) -> b[1].size - a[1].size
     for [p, set] in parents_by_size
       continue unless allow_parent p
       kids = Array.from set
       free = kids.filter (x) -> not taken.has x
-      need_full = @priorities.has(p) or
-                  (free.length >= @min_size and free.length <= @max_size)
+      need_full = @priorities.has(p) or (free.length >= @min_size and free.length <= @max_size)
       continue unless need_full
       children[p] ?= new Set()
       for ch in free
@@ -592,15 +591,10 @@ class grid_mode_group_class extends grid_mode
       last_elem.classList.add "group-end"
     last_elem
   update_stats: ->
-    groups = Array.from  @grid.dom_main.querySelectorAll ".group"
     cells = Array.from @grid.dom_main.querySelectorAll ".cell"
     completed_cells = cells.filter (a) -> a.classList.contains "completed"
     due_cells = completed_cells.filter (a) -> a.classList.contains "due"
-    completed_groups = groups.filter (g) ->
-      group_cells = Array.from g.querySelectorAll ".cell"
-      completed_group_cells = group_cells.filter (a) -> a.classList.contains "completed"
-      group_cells.length == completed_group_cells.length
-    @grid.dom_header.innerHTML = "due #{due_cells.length}, cards #{completed_cells.length}/#{cells.length}, groups #{completed_groups.length}/#{groups.length}"
+    @grid.dom_header.innerHTML = "due #{due_cells.length}, cards #{completed_cells.length}/#{cells.length}"
   update: ->
     maps = @prepare_maps @grid.data, !@options.exhaustive
     for root in maps.roots

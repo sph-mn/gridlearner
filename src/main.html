@@ -44,7 +44,7 @@
      #grid > * .cell > *{display:inline-block}
      #grid[data-mode=flip] > * .cell.completed{opacity:1}
      #grid[data-mode=flip] > main > .cell > :nth-child(2){display:none}
-     #grid[data-mode=flip] > main > .cell.selected > :nth-child(2){display:inline-block}
+     #grid[data-mode=flip] > main > .cell.selected > :nth-child(2){display:inline-block;margin-left:4px}
      #grid[data-mode=flip] > main > .cell.selected{border:0;background-color:#333}
      #grid[data-mode=choice] > *{column-gap:2rem}
      #grid[data-mode=choice] > * > * > :first-child:active{border-color:transparent}
@@ -61,11 +61,11 @@
      #grid[data-mode=group] > * .cell.completed{opacity:1}
      #grid[data-mode=group] > main .cell{user-select:none}
      #grid[data-mode=group] > main .cell > :nth-child(2){display:none}
-     #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block}
+     #grid[data-mode=group] > main .cell.selected > :nth-child(2){display:inline-block;margin-left:4px}
      #grid[data-mode=group] > main .cell.selected{border:0}
      #grid[data-mode=group] > main{display:flex;column-gap:0.5rem;row-gap:0.5rem;flex-wrap:wrap;padding:4px;font-family:"Noto Sans SC"}
-     #grid[data-mode=group] > main .cell.selected.completed{background-color:#666;border-style:solid;border-top-width:4px;border-top-color:green;border-top-left-radius:0;border-top-right-radius:0}
-     #grid[data-mode=group] > * .group{border:1px solid #888;border-radius:2px}
+     #grid[data-mode=group] > main .cell.selected.completed{font-size:80%;background-color:transparent}
+     #grid[data-mode=group] > main .cell.selected.completed > *{vertical-align:middle}
      #grid[data-mode=group] > * .cell.group-start{background-color:#222;}
      #grid[data-mode=group] > * .cell.group-end:not(:last-child){margin-right:16px}
      #grid > header{text-align:center;display:block;font-size:0.75rem}
