@@ -381,9 +381,10 @@ class grid_mode_choice_class extends grid_mode
 
 class grid_mode_group_class extends grid_mode
   name: "group"
-  options: exhaustive: false
+  options: exhaustive: false, char_tuning: false
   option_fields: [
     ["exhaustive", "boolean"]
+    ["char_tuning", "boolean"]
   ]
   set_option: (key, value) ->
     @options[key] = value
@@ -411,6 +412,7 @@ class grid_mode_group_class extends grid_mode
     cell.classList.add "completed"
     cell.classList.remove "due"
     @update_stats()
+    @update_set_completed()
     @grid.emit "update"
   cell_reset: (cell) ->
     cell.removeAttribute "data-interval"
@@ -418,6 +420,7 @@ class grid_mode_group_class extends grid_mode
     cell.classList.remove "completed"
     cell.classList.remove "due"
     @update_stats()
+    @update_set_completed()
     @grid.emit "update"
   refresh_due: ->
     now = Date.now()
@@ -550,11 +553,15 @@ class grid_mode_group_class extends grid_mode
     console.log (r + ": " + size_map[r] for r in roots).join(", ")
     console.log "mean: #{mean.toFixed 2}, median: #{median.toFixed 2}, stdev: #{stdev.toFixed 2}"
   prepare_maps: (data, canonical = true) ->
-    @min_size   = 6
-    @max_size   = 60
-    @canonical  = canonical
-    @demote     = split_chars "氵忄讠饣扌刂阝扌犭纟钅忄彳衤灬罒亻冫月牜礻𧾷口土人木"
-    @allow_demoted_roots = false
+    @min_size  = 6
+    @max_size  = 60
+    @canonical = canonical
+    if @options.char_tuning
+      @demote = split_chars "氵忄讠饣扌刂阝扌犭纟钅忄彳衤灬罒亻冫月牜礻𧾷口土人木"
+      @priorities = new Set split_chars "朵殳圣吴召奈青齐步𢀖咅否音至亲吉㕛台另古去妾辛尗责育幸舌君支亘旦瓜畐"
+    else
+      @demote = []
+      @priorities = new Set()
     {children, pinyin, cand, pot} = @ingest data
     @pinyin_map = pinyin
     {children, parent_of} = @choose_parents children, cand, pot
@@ -564,7 +571,6 @@ class grid_mode_group_class extends grid_mode
     {children, parent_of} = @merge_tiny children, parent_of, size_map
     children = @normalize children
     roots = Object.keys(pinyin).filter (x) -> x and not parent_of[x]?
-    #@display_result_analysis roots, children
     {children_map: children, pinyin_map: pinyin, roots, size_map}
   render_node: (grid, wrapper, maps, ch, parent = "") ->
     {children_map, pinyin_map, size_map} = maps
@@ -577,6 +583,7 @@ class grid_mode_group_class extends grid_mode
     attrs =
       class: cls
       id: id
+      "data-answer": pinyin_map[ch] or ""
     attrs["data-parent"] = parent if parent
     cell = crel "div", attrs, q, a
     grid.add_cell_states cell
@@ -595,6 +602,18 @@ class grid_mode_group_class extends grid_mode
     completed_cells = cells.filter (a) -> a.classList.contains "completed"
     due_cells = completed_cells.filter (a) -> a.classList.contains "due"
     @grid.dom_header.innerHTML = "due #{due_cells.length}, cards #{completed_cells.length}/#{cells.length}"
+  update_set_completed: ->
+    groups = @grid.dom_main.querySelectorAll ".group"
+    for g in groups
+      by_ans = {}
+      for cell in g.querySelectorAll ".cell"
+        ans = cell.getAttribute("data-answer") or ""
+        by_ans[ans] ?= []
+        by_ans[ans].push cell
+      for ans, arr of by_ans
+        all_completed = arr.length > 0 and arr.every (c) -> c.classList.contains "completed"
+        for c in arr
+          c.classList.toggle "set-completed", all_completed
   update: ->
     maps = @prepare_maps @grid.data, !@options.exhaustive
     for root in maps.roots
@@ -605,6 +624,7 @@ class grid_mode_group_class extends grid_mode
       @render_node @grid, w, maps, root
     @refresh_due()
     @update_stats()
+    @update_set_completed()
 
 class grid_class extends emitter_class
   # this represents the state and UI of the cell area.
