@@ -35,7 +35,7 @@ compile_cn = (compress) ->
     config = {"font_size": 12, "cell_states": {}}
     data.app.configs[id] = {_last: mode}
     if "group" == mode && name.endsWith "-containing.csv"
-      config.char_tuning = true
+      config.mode_options = {char_tuning: true}
     console.log config
     data.app.configs[id][mode] = config
     data.files.files[id] = {name: remove_extension(name)}

@@ -1011,6 +1011,7 @@ class app_class
   constructor: (preset) ->
     @initializing = true
     unless localStorage.hasOwnProperty "app"
+      console.log preset
       localStorageSetJsonItem a, b for a, b of preset if preset?
     @store = new store_class
     @store.load()
