@@ -29,14 +29,15 @@ compile_cn = (compress) ->
   file_names = fs.readdirSync data_path
   data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
   for name in file_names
-    console.log name
-    id = data.files.next_id
     mode = "group"
+    id = data.files.next_id
     config = {"font_size": 12, "cell_states": {}}
-    data.app.configs[id] = {_last: mode}
-    if "group" == mode && name.endsWith "-containing.csv"
+    if name.endsWith "-containing.csv"
       config.mode_options = {char_tuning: true}
-    console.log config
+    if name.endsWith "-unique.csv"
+      mode = "flip"
+    console.log name, config
+    data.app.configs[id] = {_last: mode}
     data.app.configs[id][mode] = config
     data.files.files[id] = {name: remove_extension(name)}
     data["file_data_#{id}"] = read_csv_file "#{data_path}/#{name}"

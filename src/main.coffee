@@ -86,6 +86,14 @@ class grid_mode_flip_class extends grid_mode
   name: "flip"
   base_interval_ms: 2000 * 86400
   max_interval_ms: 1000 * 365 * 86400
+  options: shuffle: true
+  option_fields: [
+    ["shuffle", "boolean"]
+  ]
+  set_option: (key, value) ->
+    @options[key] = value
+    @update()
+    @grid.emit "update"
   constructor: (grid) ->
     super grid
     @timer = null
@@ -131,7 +139,9 @@ class grid_mode_flip_class extends grid_mode
       if overdue
         cell.classList.remove "selected"
   update: ->
-    for a, index in @grid.data
+    data = ([a, i] for a, i in @grid.data)
+    data = if @options.shuffle then randomize(data) else data
+    for [a, index] in data
       question = crel "div", a[0]
       answer = crel "div", a.slice(1).join " "
       cell = crel "div", {class: "cell", id: "q#{index}"}, question, answer

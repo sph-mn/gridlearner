@@ -7,7 +7,7 @@ single-file web application for displaying pairs from space-separated dsv file c
 the grids function as interactive, spatial memory-matching learning games, loosely akin to the game "concentration" or flashcards.
 this application is useful for memorizing new information and reinforcing recall and association skills.
 
-hosted with example data [here](https://sph.mn/other/chinese/gridlearner-cn.html).
+hosted with example data [here](https://sph.mn/other/chinese/tools/gridlearner-cn.html).
 
 four game modes are available:
 * group
