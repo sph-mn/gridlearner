@@ -25,8 +25,8 @@ compile = (suffix, data, compress) ->
   fs.writeFileSync "compiled/gridlearner#{suffix}.html", html
 
 compile_cn = (compress) ->
-  data_path = "../hanyu/data/gridlearner"
-  file_names = fs.readdirSync data_path
+  paths = "#{data_path}/a" for a in fs.readdirSync "../hanyu/data/gridlearner"
+
   data = {app: {configs: {}}, files: {files: {}, selection: 1, next_id: 1}}
   for name in file_names
     mode = "group"
@@ -36,6 +36,9 @@ compile_cn = (compress) ->
       config.mode_options = {char_tuning: true}
     if name.endsWith "-unique.csv"
       mode = "flip"
+    if name.endsWith "-visually-similar.csv"
+      mode = "flip"
+      config.mode_options = {shuffle: false}
     console.log name, config
     data.app.configs[id] = {_last: mode}
     data.app.configs[id][mode] = config

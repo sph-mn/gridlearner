@@ -86,18 +86,31 @@ class grid_mode_flip_class extends grid_mode
   name: "flip"
   base_interval_ms: 2000 * 86400
   max_interval_ms: 1000 * 365 * 86400
-  options: shuffle: true
+  options:
+    shuffle: true
+    list: false
+    list_count: 10
   option_fields: [
     ["shuffle", "boolean"]
+    ["list", "boolean"]
+    ["list_count", "integer"]
   ]
   set_option: (key, value) ->
     @options[key] = value
+    if key is "list"
+      @toggle_list_class()
     @update()
     @grid.emit "update"
   constructor: (grid) ->
     super grid
     @timer = null
     @timer_cell = null
+    @order = []
+    @cursor = 0
+    @next_button = crel "button", "more"
+    @next_button.addEventListener "click", =>
+      @render_batch()
+      @grid.emit "update"
   pointerdown: (cell) ->
     if cell.classList.contains("completed") && cell.classList.contains("selected")
       @cell_reset cell
@@ -138,9 +151,45 @@ class grid_mode_flip_class extends grid_mode
       cell.classList.toggle "due", overdue
       if overdue
         cell.classList.remove "selected"
+  toggle_list_class: ->
+    if @options.list
+      @grid.dom_main.classList.add "option-list-enabled"
+    else
+      @grid.dom_main.classList.remove "option-list-enabled"
+  ensure_order: ->
+    if @order.length != @grid.data.length or @cursor >= @order.length
+      @order = randomize (i for a, i in @grid.data)
+      @cursor = 0
+  make_cell: (idx) ->
+    a = @grid.data[idx]
+    question = crel "div", a[0]
+    answer = crel "div", a.slice(1).join " "
+    cell = crel "div", {class: "cell", id: "q#{idx}"}, question, answer
+    @grid.add_cell_states cell
+    cell
+  render_batch: ->
+    return unless @grid.data.length
+    @ensure_order()
+    @grid.dom_main.innerHTML = ""
+    n = Math.max 1, parseInt(@options.list_count or 1)
+    end = Math.min @cursor + n, @order.length
+    for k in [@cursor...end]
+      idx = @order[k]
+      @grid.dom_main.appendChild @make_cell idx
+    @cursor = end
+    if @cursor >= @order.length
+      @ensure_order()
+    @grid.dom_header.appendChild @next_button unless @next_button.isConnected
+    @refresh_due()
   update: ->
+    @toggle_list_class()
+    if @options.list
+      @next_button.remove()
+      @render_batch()
+      return
     data = ([a, i] for a, i in @grid.data)
     data = if @options.shuffle then randomize(data) else data
+    @grid.dom_main.innerHTML = ""
     for [a, index] in data
       question = crel "div", a[0]
       answer = crel "div", a.slice(1).join " "
@@ -757,11 +806,11 @@ class grid_class extends emitter_class
       @class_set[a] = (b) -> b.classList.add a
       @class_set["not_#{a}"] = (b) -> b.classList.remove a
     @modes = {
+      choice: new grid_mode_choice_class @
       flip: new grid_mode_flip_class @
       group: new grid_mode_group_class @
       pair: new grid_mode_pair_class @
       synonym: new grid_mode_synonym_class @
-      choice: new grid_mode_choice_class @
     }
     @set_mode @modes.flip
     @add_events()
